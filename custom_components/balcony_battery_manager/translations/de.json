@@ -1,0 +1,140 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Balkon-Batterie-Manager – Eingangs-Messwerte",
+        "description": "Wähle die Sensoren deiner bestehenden Dach-PV-Anlage mit Hauptbatterie. Diese werden nur gelesen – die Balkonbatterie nutzt bewusst NICHT denselben zentralen Leistungsmesser, damit sich beide Speicher nicht gegenseitig ausspielen.",
+        "data": {
+          "grid_power": "Netz-/Hausleistungssensor (W)",
+          "grid_export_positive": "Positiver Wert = Einspeisung (ins Netz)",
+          "main_soc": "SOC Hauptbatterie (%)",
+          "main_power": "Lade-/Entladeleistung Hauptbatterie (W)",
+          "main_discharge_positive": "Hauptbatterie: Entladung = positiv",
+          "balcony_soc": "SOC Balkonkraftwerk-Batterie (%)",
+          "balcony_power": "Lade-/Entladeleistung Balkonkraftwerk (W)",
+          "balcony_discharge_positive": "Balkonbatterie: Entladung = positiv"
+        }
+      },
+      "control": {
+        "title": "Balkon-Batterie-Manager – Anker-Steuer-Entitäten",
+        "description": "Ordne die Anker-Solix-Entitäten zu, über die die Balkonbatterie gesteuert wird. Es werden ausschließlich Standard-HA-Services genutzt, damit das Plugin robust gegen Versionsänderungen der Anker-Integration bleibt. Typisch: Nutzungsmodus -> 'manuell'/'Custom', Ausgabe-/Home-Load-Preset in W für die Entladung, AC-Lade-Schalter + AC-Ladeleistung in W für die Ladung.",
+        "data": {
+          "mode_select": "Nutzungsmodus-Select-Entität (optional)",
+          "mode_manual_value": "Optionswert, der den manuellen/Custom-Modus bedeutet",
+          "discharge_number": "Number-Entität: Entlade-/Ausgabe-Preset (W)",
+          "ac_charge_switch": "AC-Lade-Schalter (optional)",
+          "ac_charge_number": "Number-Entität: AC-Ladeleistung/-limit (W)",
+          "deactivation_behavior": "Verhalten bei Deaktivierung des Plugins",
+          "deactivation_mode_value": "Wiederherzustellender Modus-Wert (nur bei 'Anker-Modus wiederherstellen', z. B. Smart/Auto)"
+        }
+      },
+      "params": {
+        "title": "Balkon-Batterie-Manager – Grenzwerte & Parameter",
+        "description": "Ein Intervall unter 300 s ist nicht sinnvoll: Die Solarbank aktualisiert ihre Cloud-Werte nur etwa alle 5 Minuten, mehr Befehle erzeugen nur unnötige Cloud-Last.",
+        "data": {
+          "max_charge_power": "Maximale Ladeleistung Balkonbatterie (W)",
+          "max_house_feed": "Maximale Hauseinspeisung Balkonbatterie (W)",
+          "control_interval": "Steuerintervall (Sekunden)",
+          "charge_headroom": "Lade-Headroom (W) – Abstand zur Einspeisung",
+          "discharge_on_threshold": "Entlade-Aktivierungsschwelle (W)",
+          "discharge_off_threshold": "Entlade-Deaktivierungsschwelle (W)",
+          "discharge_share": "Anteil der Balkonbatterie an der Gesamt-Entladung (%)",
+          "deadband": "Sende-Totband (W)",
+          "failsafe_after": "Fail-safe nach Datenausfall (Sekunden, 0 = unbegrenzt halten)",
+          "grid_support_enabled": "Netzbezug decken, wenn Hauptbatterie leer ist",
+          "main_empty_soc": "Hauptbatterie gilt als leer ab/unter (%)",
+          "grid_import_on_threshold": "Aktivierungsschwelle Netz-Unterstützung (W Bezug)",
+          "grid_import_off_threshold": "Deaktivierungsschwelle Netz-Unterstützung (W Bezug)"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Eingangs-Messwerte",
+        "data": {
+          "grid_power": "Netz-/Hausleistungssensor (W)",
+          "grid_export_positive": "Positiver Wert = Einspeisung (ins Netz)",
+          "main_soc": "SOC Hauptbatterie (%)",
+          "main_power": "Lade-/Entladeleistung Hauptbatterie (W)",
+          "main_discharge_positive": "Hauptbatterie: Entladung = positiv",
+          "balcony_soc": "SOC Balkonkraftwerk-Batterie (%)",
+          "balcony_power": "Lade-/Entladeleistung Balkonkraftwerk (W)",
+          "balcony_discharge_positive": "Balkonbatterie: Entladung = positiv"
+        }
+      },
+      "control": {
+        "title": "Anker-Steuer-Entitäten",
+        "data": {
+          "mode_select": "Nutzungsmodus-Select-Entität (optional)",
+          "mode_manual_value": "Optionswert, der den manuellen/Custom-Modus bedeutet",
+          "discharge_number": "Number-Entität: Entlade-/Ausgabe-Preset (W)",
+          "ac_charge_switch": "AC-Lade-Schalter (optional)",
+          "ac_charge_number": "Number-Entität: AC-Ladeleistung/-limit (W)",
+          "deactivation_behavior": "Verhalten bei Deaktivierung des Plugins",
+          "deactivation_mode_value": "Wiederherzustellender Modus-Wert (z. B. Smart/Auto)"
+        }
+      },
+      "params": {
+        "title": "Grenzwerte & Parameter",
+        "data": {
+          "max_charge_power": "Maximale Ladeleistung Balkonbatterie (W)",
+          "max_house_feed": "Maximale Hauseinspeisung Balkonbatterie (W)",
+          "control_interval": "Steuerintervall (Sekunden)",
+          "charge_headroom": "Lade-Headroom (W)",
+          "discharge_on_threshold": "Entlade-Aktivierungsschwelle (W)",
+          "discharge_off_threshold": "Entlade-Deaktivierungsschwelle (W)",
+          "discharge_share": "Anteil der Balkonbatterie an der Gesamt-Entladung (%)",
+          "deadband": "Sende-Totband (W)",
+          "failsafe_after": "Fail-safe nach Datenausfall (Sekunden, 0 = unbegrenzt halten)",
+          "grid_support_enabled": "Netzbezug decken, wenn Hauptbatterie leer ist",
+          "main_empty_soc": "Hauptbatterie gilt als leer ab/unter (%)",
+          "grid_import_on_threshold": "Aktivierungsschwelle Netz-Unterstützung (W Bezug)",
+          "grid_import_off_threshold": "Deaktivierungsschwelle Netz-Unterstützung (W Bezug)"
+        }
+      }
+    }
+  },
+  "selector": {
+    "deactivation_behavior": {
+      "options": {
+        "all_zero": "Alles auf 0 setzen (sicher)",
+        "restore_anker": "Anker-Modus wiederherstellen (z. B. Smart/Auto)"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "mode": {
+        "name": "Modus",
+        "state": {
+          "idle": "Leerlauf",
+          "charging": "Laden",
+          "discharging": "Entladen",
+          "disabled": "Deaktiviert"
+        }
+      },
+      "target_charge": { "name": "Lade-Sollwert" },
+      "target_discharge": { "name": "Entlade-Sollwert" },
+      "computed_surplus": { "name": "Berechneter Überschuss" }
+    },
+    "switch": {
+      "enabled": { "name": "Steuerung aktiv" }
+    }
+  },
+  "services": {
+    "enable": {
+      "name": "Aktivieren",
+      "description": "Aktiviert die Steuerung der Balkonbatterie."
+    },
+    "disable": {
+      "name": "Deaktivieren",
+      "description": "Deaktiviert die Steuerung und führt die konfigurierte Deaktivierungs-Aktion aus."
+    },
+    "recalculate_now": {
+      "name": "Jetzt neu berechnen",
+      "description": "Löst sofort eine Neuberechnung außerhalb des Intervalls aus."
+    }
+  }
+}

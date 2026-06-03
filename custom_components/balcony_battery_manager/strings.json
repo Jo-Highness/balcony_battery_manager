@@ -1,0 +1,140 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Balcony Battery Manager – Input measurements",
+        "description": "Select the sensors of your existing roof PV / main-battery system. These are read only; the balcony battery is never measured via the same central meter.",
+        "data": {
+          "grid_power": "Grid / house power sensor (W)",
+          "grid_export_positive": "Positive value = export (feed-in to grid)",
+          "main_soc": "Main battery SOC (%)",
+          "main_power": "Main battery charge/discharge power (W)",
+          "main_discharge_positive": "Main battery: discharge = positive",
+          "balcony_soc": "Balcony battery SOC (%)",
+          "balcony_power": "Balcony battery charge/discharge power (W)",
+          "balcony_discharge_positive": "Balcony battery: discharge = positive"
+        }
+      },
+      "control": {
+        "title": "Balcony Battery Manager – Anker control entities",
+        "description": "Map the Anker Solix entities used to steer the balcony battery. Only standard HA services are used, so the plugin stays robust against Anker integration version changes.",
+        "data": {
+          "mode_select": "Usage-mode select entity (optional)",
+          "mode_manual_value": "Option value that means manual/custom mode",
+          "discharge_number": "Number entity: discharge / home-load output preset (W)",
+          "ac_charge_switch": "AC charging switch (optional)",
+          "ac_charge_number": "Number entity: AC charge power / limit (W)",
+          "deactivation_behavior": "Behaviour when the plugin is disabled",
+          "deactivation_mode_value": "Mode value to restore (only for 'restore Anker mode', e.g. Smart/Auto)"
+        }
+      },
+      "params": {
+        "title": "Balcony Battery Manager – Limits & parameters",
+        "description": "An interval below 300 s is not useful: the Solarbank refreshes its cloud values only every ~5 minutes and more commands just create cloud load.",
+        "data": {
+          "max_charge_power": "Max charge power balcony battery (W)",
+          "max_house_feed": "Max house feed-in balcony battery (W)",
+          "control_interval": "Control interval (seconds)",
+          "charge_headroom": "Charge headroom (W) – buffer kept exporting",
+          "discharge_on_threshold": "Discharge activation threshold (W)",
+          "discharge_off_threshold": "Discharge deactivation threshold (W)",
+          "discharge_share": "Balcony share of total discharge (%)",
+          "deadband": "Send dead-band (W)",
+          "failsafe_after": "Fail-safe after data outage (seconds, 0 = hold forever)",
+          "grid_support_enabled": "Cover grid import when main battery is empty",
+          "main_empty_soc": "Main battery considered empty at/below (%)",
+          "grid_import_on_threshold": "Grid-support activation threshold (W import)",
+          "grid_import_off_threshold": "Grid-support deactivation threshold (W import)"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Input measurements",
+        "data": {
+          "grid_power": "Grid / house power sensor (W)",
+          "grid_export_positive": "Positive value = export (feed-in to grid)",
+          "main_soc": "Main battery SOC (%)",
+          "main_power": "Main battery charge/discharge power (W)",
+          "main_discharge_positive": "Main battery: discharge = positive",
+          "balcony_soc": "Balcony battery SOC (%)",
+          "balcony_power": "Balcony battery charge/discharge power (W)",
+          "balcony_discharge_positive": "Balcony battery: discharge = positive"
+        }
+      },
+      "control": {
+        "title": "Anker control entities",
+        "data": {
+          "mode_select": "Usage-mode select entity (optional)",
+          "mode_manual_value": "Option value that means manual/custom mode",
+          "discharge_number": "Number entity: discharge / home-load output preset (W)",
+          "ac_charge_switch": "AC charging switch (optional)",
+          "ac_charge_number": "Number entity: AC charge power / limit (W)",
+          "deactivation_behavior": "Behaviour when the plugin is disabled",
+          "deactivation_mode_value": "Mode value to restore (e.g. Smart/Auto)"
+        }
+      },
+      "params": {
+        "title": "Limits & parameters",
+        "data": {
+          "max_charge_power": "Max charge power balcony battery (W)",
+          "max_house_feed": "Max house feed-in balcony battery (W)",
+          "control_interval": "Control interval (seconds)",
+          "charge_headroom": "Charge headroom (W)",
+          "discharge_on_threshold": "Discharge activation threshold (W)",
+          "discharge_off_threshold": "Discharge deactivation threshold (W)",
+          "discharge_share": "Balcony share of total discharge (%)",
+          "deadband": "Send dead-band (W)",
+          "failsafe_after": "Fail-safe after data outage (seconds, 0 = hold forever)",
+          "grid_support_enabled": "Cover grid import when main battery is empty",
+          "main_empty_soc": "Main battery considered empty at/below (%)",
+          "grid_import_on_threshold": "Grid-support activation threshold (W import)",
+          "grid_import_off_threshold": "Grid-support deactivation threshold (W import)"
+        }
+      }
+    }
+  },
+  "selector": {
+    "deactivation_behavior": {
+      "options": {
+        "all_zero": "Set everything to 0 (safe)",
+        "restore_anker": "Restore Anker mode (e.g. Smart/Auto)"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "mode": {
+        "name": "Mode",
+        "state": {
+          "idle": "Idle",
+          "charging": "Charging",
+          "discharging": "Discharging",
+          "disabled": "Disabled"
+        }
+      },
+      "target_charge": { "name": "Target charge" },
+      "target_discharge": { "name": "Target discharge" },
+      "computed_surplus": { "name": "Computed surplus" }
+    },
+    "switch": {
+      "enabled": { "name": "Enabled" }
+    }
+  },
+  "services": {
+    "enable": {
+      "name": "Enable",
+      "description": "Activate the balcony battery control loop."
+    },
+    "disable": {
+      "name": "Disable",
+      "description": "Deactivate the control loop and run the configured deactivation action."
+    },
+    "recalculate_now": {
+      "name": "Recalculate now",
+      "description": "Trigger an immediate evaluation outside the control interval."
+    }
+  }
+}

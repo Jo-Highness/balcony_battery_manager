@@ -1,0 +1,14 @@
+{
+  "domain": "balcony_battery_manager",
+  "name": "Balcony Battery Manager",
+  "after_dependencies": ["number", "select", "switch"],
+  "codeowners": ["@Jo-Highness"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/Jo-Highness/balcony_battery_manager",
+  "integration_type": "service",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/Jo-Highness/balcony_battery_manager/issues",
+  "requirements": [],
+  "version": "1.0.0"
+}

@@ -1,0 +1,16 @@
+enable:
+  name: Enable
+  description: >-
+    Activate the balcony battery control loop. Runs one calculation immediately.
+
+disable:
+  name: Disable
+  description: >-
+    Deactivate the control loop and run the configured deactivation action
+    (set everything to 0, or restore the Anker mode).
+
+recalculate_now:
+  name: Recalculate now
+  description: >-
+    Trigger an immediate evaluation and control update, outside the regular
+    control interval.
