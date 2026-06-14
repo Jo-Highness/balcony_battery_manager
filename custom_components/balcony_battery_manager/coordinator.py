@@ -58,6 +58,7 @@ from .const import (
     CONF_AC_CHARGE_SWITCH,
     CONF_BALCONY_DISCHARGE_POSITIVE,
     CONF_BALCONY_POWER,
+    CONF_BALCONY_POWER_UNIT,
     CONF_BALCONY_SOC,
     CONF_CHARGE_HEADROOM,
     CONF_DEACTIVATION_BEHAVIOR,
@@ -72,11 +73,13 @@ from .const import (
     CONF_GRID_IMPORT_OFF_THRESHOLD,
     CONF_GRID_IMPORT_ON_THRESHOLD,
     CONF_GRID_POWER,
+    CONF_GRID_POWER_UNIT,
     CONF_GRID_SUPPORT_ENABLED,
     CONF_INTERVAL,
     CONF_MAIN_EMPTY_SOC,
     CONF_MAIN_DISCHARGE_POSITIVE,
     CONF_MAIN_POWER,
+    CONF_MAIN_POWER_UNIT,
     CONF_MAIN_SOC,
     CONF_MAX_CHARGE_POWER,
     CONF_MAX_HOUSE_FEED,
@@ -100,6 +103,7 @@ from .const import (
     DEFAULT_MAIN_EMPTY_SOC,
     DEFAULT_MAX_CHARGE_POWER,
     DEFAULT_MAX_HOUSE_FEED,
+    DEFAULT_POWER_UNIT,
     DOMAIN,
     IGNORED_STATES,
     MODE_CHARGING,
@@ -115,6 +119,44 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+# Units that have already triggered an "unknown unit" warning, so the log is
+# not spammed once per control cycle. Keyed by the normalised (lower-cased)
+# unit string; the empty string covers "no unit at all".
+_WARNED_UNKNOWN_UNITS: set[str] = set()
+
+
+def _normalise_power(value: float, unit: str | None, override: str) -> float:
+    """Return ``value`` expressed in watts.
+
+    ``override`` is one of ``auto`` / ``W`` / ``kW``:
+
+    * ``kW`` -> always multiply by 1000.
+    * ``W``  -> take the value as-is.
+    * ``auto`` -> look at ``unit`` (case-insensitive, trimmed): ``kW`` scales by
+      1000, ``W`` is unchanged, anything else is treated as watts and warned
+      about exactly once.
+    """
+    if override == "kW":
+        return value * 1000.0
+    if override == "W":
+        return value
+
+    normalised = (unit or "").strip().lower()
+    if normalised == "kw":
+        return value * 1000.0
+    if normalised == "w":
+        return value
+
+    if normalised not in _WARNED_UNKNOWN_UNITS:
+        _WARNED_UNKNOWN_UNITS.add(normalised)
+        _LOGGER.warning(
+            "Power sensor reported unit %r, which is neither W nor kW; treating "
+            "the value as watts. Set the explicit unit override in the "
+            "integration options if this is wrong.",
+            unit,
+        )
+    return value
 
 
 @dataclass
@@ -247,6 +289,18 @@ class BalconyBatteryCoordinator(DataUpdateCoordinator[dict]):
             self._opt(CONF_GRID_IMPORT_OFF_THRESHOLD, DEFAULT_GRID_IMPORT_OFF_THRESHOLD)
         )
 
+    @property
+    def grid_power_unit(self) -> str:
+        return str(self._opt(CONF_GRID_POWER_UNIT, DEFAULT_POWER_UNIT))
+
+    @property
+    def main_power_unit(self) -> str:
+        return str(self._opt(CONF_MAIN_POWER_UNIT, DEFAULT_POWER_UNIT))
+
+    @property
+    def balcony_power_unit(self) -> str:
+        return str(self._opt(CONF_BALCONY_POWER_UNIT, DEFAULT_POWER_UNIT))
+
     # ------------------------------------------------------------------ setup
     async def async_setup(self) -> None:
         """Restore persisted state and start the control timer."""
@@ -327,8 +381,10 @@ class BalconyBatteryCoordinator(DataUpdateCoordinator[dict]):
         Returns ``None`` when a required input is missing/unavailable or
         obviously misconfigured (defensive behaviour, see README).
         """
-        grid_raw = _to_float(self._state(CONF_GRID_POWER))
-        main_raw = _to_float(self._state(CONF_MAIN_POWER))
+        grid_state, grid_unit = self._state_with_unit(CONF_GRID_POWER)
+        main_state, main_unit = self._state_with_unit(CONF_MAIN_POWER)
+        grid_raw = _to_float(grid_state)
+        main_raw = _to_float(main_state)
         balcony_soc = _to_float(self._state(CONF_BALCONY_SOC))
 
         if grid_raw is None or main_raw is None or balcony_soc is None:
@@ -340,25 +396,31 @@ class BalconyBatteryCoordinator(DataUpdateCoordinator[dict]):
             return None
         balcony_soc = clamp(balcony_soc, 0, 100)
 
+        # Order per input: parse float -> normalise unit to W -> sign-correct.
+        grid_w = _normalise_power(grid_raw, grid_unit, self.grid_power_unit)
+        main_w = _normalise_power(main_raw, main_unit, self.main_power_unit)
+
         export_positive = self._opt(CONF_GRID_EXPORT_POSITIVE, DEFAULT_GRID_EXPORT_POSITIVE)
-        grid_export = grid_raw if export_positive else -grid_raw
+        grid_export = grid_w if export_positive else -grid_w
 
         main_disch_positive = self._opt(
             CONF_MAIN_DISCHARGE_POSITIVE, DEFAULT_MAIN_DISCHARGE_POSITIVE
         )
-        main_discharge = main_raw if main_disch_positive else -main_raw
+        main_discharge = main_w if main_disch_positive else -main_w
 
-        # Optional / informational inputs.
+        # Optional / informational inputs. SOC stays a percentage (no scaling).
         main_soc = _to_float(self._state(CONF_MAIN_SOC))
-        balcony_power_raw = _to_float(self._state(CONF_BALCONY_POWER))
+        balcony_state, balcony_unit = self._state_with_unit(CONF_BALCONY_POWER)
+        balcony_power_raw = _to_float(balcony_state)
         balcony_power = None
         if balcony_power_raw is not None:
+            balcony_w = _normalise_power(
+                balcony_power_raw, balcony_unit, self.balcony_power_unit
+            )
             balcony_disch_positive = self._opt(
                 CONF_BALCONY_DISCHARGE_POSITIVE, DEFAULT_BALCONY_DISCHARGE_POSITIVE
             )
-            balcony_power = (
-                balcony_power_raw if balcony_disch_positive else -balcony_power_raw
-            )
+            balcony_power = balcony_w if balcony_disch_positive else -balcony_w
 
         return Inputs(
             grid_export=grid_export,
@@ -374,6 +436,16 @@ class BalconyBatteryCoordinator(DataUpdateCoordinator[dict]):
             return None
         state = self.hass.states.get(entity_id)
         return state.state if state else None
+
+    def _state_with_unit(self, conf_key: str) -> tuple[Any, str | None]:
+        """Return ``(state, unit_of_measurement)`` for a configured entity."""
+        entity_id = self._config.get(conf_key)
+        if not entity_id:
+            return None, None
+        state = self.hass.states.get(entity_id)
+        if not state:
+            return None, None
+        return state.state, state.attributes.get("unit_of_measurement")
 
     # ------------------------------------------------------------------ logic
     def _evaluate(self, inp: Inputs) -> Decision:

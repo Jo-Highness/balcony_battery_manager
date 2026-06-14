@@ -12,7 +12,11 @@ from custom_components.balcony_battery_manager.const import (
     REASON_GRID_SUPPORT,
     REASON_RELIEF,
 )
-from custom_components.balcony_battery_manager.coordinator import Inputs
+from custom_components.balcony_battery_manager.coordinator import (
+    Inputs,
+    _normalise_power,
+    _WARNED_UNKNOWN_UNITS,
+)
 
 
 def _inp(**kw) -> Inputs:
@@ -236,3 +240,63 @@ async def test_read_inputs_sign_inversion(make_coordinator, hass):
     inp = c._read_inputs()
     assert inp is not None
     assert inp.grid_export == 700
+
+
+# --------------------------------------------------------------------------- #
+# Feature 3: W / kW unit handling
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize(
+    "value,unit,override,expected",
+    [
+        (0.5, "kW", "auto", 500.0),  # auto detects kW
+        (500, "W", "auto", 500.0),  # auto detects W
+        (0.5, " kW ", "auto", 500.0),  # case/whitespace insensitive
+        (500, None, "kW", 500_000.0),  # explicit override wins over unit
+        (0.5, "kW", "W", 0.5),  # explicit W override keeps the raw value
+        (500, None, "auto", 500.0),  # unknown/empty -> treated as W
+    ],
+)
+def test_normalise_power(value, unit, override, expected):
+    assert _normalise_power(value, unit, override) == expected
+
+
+def test_normalise_power_unknown_unit_warns_once(caplog):
+    _WARNED_UNKNOWN_UNITS.clear()
+    with caplog.at_level("WARNING"):
+        assert _normalise_power(123, "PS", "auto") == 123  # treated as watts
+        assert _normalise_power(456, "PS", "auto") == 456  # no second warning
+    warnings = [r for r in caplog.records if "PS" in r.getMessage()]
+    assert len(warnings) == 1
+
+
+async def test_read_inputs_kw_equals_w_decision(make_coordinator, hass):
+    """A grid sensor in kW (0.5) yields the same decision as 500 W."""
+    from custom_components.balcony_battery_manager.const import CONF_GRID_POWER_UNIT
+    from tests.conftest import set_inputs
+
+    c_kw = await make_coordinator(**{CONF_GRID_POWER_UNIT: "auto"})
+    set_inputs(hass, grid=0.5, main_power=0, balcony_soc=50, grid_unit="kW")
+    await hass.async_block_till_done()
+    inp_kw = c_kw._read_inputs()
+    assert inp_kw is not None
+    assert inp_kw.grid_export == 500.0  # internally normalised to W
+
+    c_w = await make_coordinator()
+    set_inputs(hass, grid=500, main_power=0, balcony_soc=50, grid_unit="W")
+    await hass.async_block_till_done()
+    inp_w = c_w._read_inputs()
+    assert inp_w is not None
+    assert inp_w.grid_export == inp_kw.grid_export
+
+
+async def test_read_inputs_kw_override_without_unit(make_coordinator, hass):
+    """Manual kW override scales even when the sensor exposes no unit."""
+    from custom_components.balcony_battery_manager.const import CONF_MAIN_POWER_UNIT
+    from tests.conftest import set_inputs
+
+    c = await make_coordinator(**{CONF_MAIN_POWER_UNIT: "kW"})
+    set_inputs(hass, grid=0, main_power=0.3, balcony_soc=50)
+    await hass.async_block_till_done()
+    inp = c._read_inputs()
+    assert inp is not None
+    assert inp.main_discharge == 300.0

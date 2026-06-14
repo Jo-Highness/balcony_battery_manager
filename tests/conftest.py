@@ -97,10 +97,17 @@ def set_inputs(
     main_power: Any = 0,
     balcony_soc: Any = 50,
     balcony_power: Any = 0,
+    grid_unit: str | None = None,
+    main_unit: str | None = None,
+    balcony_unit: str | None = None,
 ) -> None:
-    """Push a full set of input sensor states."""
-    hass.states.async_set(GRID, grid)
+    """Push a full set of input sensor states (optionally with power units)."""
+
+    def _attrs(unit: str | None) -> dict[str, Any]:
+        return {"unit_of_measurement": unit} if unit is not None else {}
+
+    hass.states.async_set(GRID, grid, _attrs(grid_unit))
     hass.states.async_set(MAIN_SOC, main_soc)
-    hass.states.async_set(MAIN_POWER, main_power)
+    hass.states.async_set(MAIN_POWER, main_power, _attrs(main_unit))
     hass.states.async_set(BALCONY_SOC, balcony_soc)
-    hass.states.async_set(BALCONY_POWER, balcony_power)
+    hass.states.async_set(BALCONY_POWER, balcony_power, _attrs(balcony_unit))

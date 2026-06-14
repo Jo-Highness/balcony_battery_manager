@@ -17,6 +17,11 @@ CONF_BALCONY_SOC = "balcony_soc"
 CONF_BALCONY_POWER = "balcony_power"
 CONF_BALCONY_DISCHARGE_POSITIVE = "balcony_discharge_positive"
 
+# --- Power-sensor unit handling (auto | W | kW) ---
+CONF_GRID_POWER_UNIT = "grid_power_unit"
+CONF_MAIN_POWER_UNIT = "main_power_unit"
+CONF_BALCONY_POWER_UNIT = "balcony_power_unit"
+
 # --- Limits / parameters ---
 CONF_MAX_CHARGE_POWER = "max_charge_power"
 CONF_MAX_HOUSE_FEED = "max_house_feed"
@@ -49,6 +54,12 @@ CONF_DEACTIVATION_MODE_VALUE = "deactivation_mode_value"
 DEFAULT_GRID_EXPORT_POSITIVE = True
 DEFAULT_MAIN_DISCHARGE_POSITIVE = True
 DEFAULT_BALCONY_DISCHARGE_POSITIVE = True
+
+# Power-unit override; "auto" keeps the existing behaviour (sensor unit is
+# auto-detected, unknown units are treated as W) so existing entries need no
+# migration.
+DEFAULT_POWER_UNIT = "auto"
+POWER_UNIT_OPTIONS = ["auto", "W", "kW"]
 
 DEFAULT_MAX_CHARGE_POWER = 1100
 DEFAULT_MAX_HOUSE_FEED = 800
