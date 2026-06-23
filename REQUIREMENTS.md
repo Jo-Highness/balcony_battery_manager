@@ -1,7 +1,7 @@
 ---
 service: balcony_battery_manager
 typ: requirements
-version: 1.1
+version: 1.2
 status: current
 stand: 2026-06-23
 quellen: [README.md (ausführliche Spezifikation), custom_components/balcony_battery_manager, tests]
@@ -37,6 +37,11 @@ Steuerung der Hauptanlage, Energie-Forecasting.
   Sende-Totband 25 W, Fail-safe-Zeit 0, Netzbezug-decken an/SOC-leer 10 %/Aktivierung 50 W/Deaktivierung 20 W.
 - **FR-3 Anker-Mapping:** Nutzungsmodus-Select (+ „manuell"-Wert, wird vor jedem Schreiben erzwungen),
   Entlade-/Ausgabe-Preset (W), AC-Lade-Schalter (optional), AC-Ladeleistung (W) – vom Nutzer gewählt.
+  Das **AC-Ladeleistungsfeld akzeptiert Number ODER Select**: Geräte ohne AC-Lade-Number (Solarbank 3:
+  nur `select.ac_input_limit`, 0…1200 W gestuft) werden unterstützt, indem der berechnete Sollwert auf die
+  größte Option ≤ Ziel **abgerundet** wird (0 = aus). Der Schreib-Pfad unterscheidet `number.set_value` vs.
+  `select.select_option` (auch `input_*`). **Hinweis:** Das Select begrenzt nur; das AC-Laden wird über den
+  MQTT-Schalter `ac_charge` ausgelöst (in anker_solix zu aktivieren + als AC-Lade-Schalter zu mappen).
 - **FR-7 Auto-Vorbelegung (best-effort, nur Vorschläge):** Die UI schlägt Eingänge, Steuer-Entitäten,
   **Vorzeichen** und den Manual-Modus-Wert aus drei Quellen in dieser Reihenfolge vor (nur leere Felder):
   (1) HA-Energie-Dashboard, (2) **Vendor-Muster E3DC** (entity_id-Muster `gridpowerconsumption` /
@@ -110,3 +115,4 @@ Steuerung der Hauptanlage, Energie-Forecasting.
 |---|---|---|
 | 1.0 | 2026-06-18 | Erstfassung als Clean-Room-requirements-Doc aus README/Code (Code v1.0.0) |
 | 1.1 | 2026-06-23 | main_soc optional (FR-1); FR-7 Auto-Vorbelegung mit Vendor-Mustern (E3DC/KNX + anker_solix), Vorzeichen-/Manual-Vorschläge; Referenz-Setup E3DC+Solarbank 3 dokumentiert |
+| 1.2 | 2026-06-23 | FR-3: AC-Ladeleistung akzeptiert Number ODER Select (Solarbank-3 `ac_input_limit`, Floor-Mapping); Prefill-Bugfix ac_charge-Switch statt ac_socket; AC-Lade-Trigger via MQTT-`ac_charge`-Switch dokumentiert |

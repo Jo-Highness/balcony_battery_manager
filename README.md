@@ -79,7 +79,8 @@ Die gesamte Konfiguration läuft über die UI (Config-Flow), nachträglich jeder
 > | Balkon-Leistung | `sensor.solarbank_3_e2700_pro_battery_power` (W) · Entladung=positiv **aus** |
 > | Nutzungsmodus-Select + Wert | `select.solarbank_3_e2700_pro_usage_mode` → `manual` |
 > | Entlade-/Ausgabe-Preset | `number.solarbank_3_e2700_pro_system_output_preset` (W, 0–800) |
-> | AC-Lade-Schalter / -Number | *(in diesem Setup nicht zwingend – optional leer)* |
+> | AC-Ladeleistung (Select) | `select.solarbank_3_e2700_pro_ac_input_limit` (0…1200 W) |
+> | AC-Lade-Schalter | `switch.solarbank_3_e2700_pro_ac_charge` — **erst in anker_solix (MQTT) aktivieren**; ohne ihn startet kein AC-Laden |
 
 ### 1. Eingangs-Messwerte (nur lesen)
 | Feld | Bedeutung |
@@ -132,9 +133,20 @@ Die gesamte Konfiguration läuft über die UI (Config-Flow), nachträglich jeder
 > | Konfig-Feld | typische Anker-Entität |
 > |-------------|------------------------|
 > | Nutzungsmodus-Select (optional) + „manueller“-Optionswert | `select.*_usage_mode` → Wert **„manuell“ / „Custom“**. Wird vor jedem Sollwert-Schreiben erzwungen, sonst überschreibt Ankers eigene Automatik die Werte. |
-> | Number Entlade-/Ausgabe-Preset (W) | `number.*_home_load_preset` / `*_output_power` (W) für die **Entladung** |
-> | AC-Lade-Schalter (optional) | `switch.*_ac_charge` |
-> | Number AC-Ladeleistung/-limit (W) | `number.*_ac_charging_power` (W) für die **Ladung** |
+> | Entlade-/Ausgabe-Preset (W) | `number.*_system_output_preset` / `*_output_power` (W) für die **Entladung** |
+> | AC-Lade-Schalter (optional) | `switch.*_ac_charge` – siehe Hinweis unten |
+> | AC-Ladeleistung/-limit (W) — **Number _oder_ Select** | `number.*_ac_charging_power` **oder**, falls das Gerät keine Number bietet, ein Select wie `select.*_ac_input_limit` (0…1200 W) für die **Ladung** |
+>
+> **AC-Laden (Number oder Select).** Manche Geräte – u. a. die **Solarbank 3 E2700 Pro** –
+> stellen die AC-Ladeleistung **nicht als Number**, sondern nur als **gestuftes Select**
+> (`ac_input_limit`, 0…1200 W in 100-W-Schritten) bereit. Das Plugin akzeptiert daher hier
+> auch ein Select und **rundet** den berechneten Lade-Sollwert auf die nächstkleinere Stufe
+> ab (`0` = aus), damit nie mehr als der Überschuss gezogen wird.
+> **Wichtig:** Das Select **begrenzt** nur die Leistung – **ausgelöst** wird das AC-Laden
+> über den Anker-Schalter `ac_charge`. Dieser ist eine **MQTT-Entität** und in `anker_solix`
+> **standardmäßig deaktiviert**: in der Anker-Integration MQTT/Realtime aktivieren, die
+> `ac_charge`-Entität einschalten und oben als *AC-Lade-Schalter* zuordnen. Ohne diesen
+> Schalter setzt das Plugin nur das Limit, startet aber kein Laden.
 >
 > **Verhalten bei Deaktivierung** des Plugins: *„alles auf 0 / sicher“* (Default) **oder**
 > *„Anker-Modus wiederherstellen“* (dann zusätzlich den wiederherzustellenden Modus-Wert

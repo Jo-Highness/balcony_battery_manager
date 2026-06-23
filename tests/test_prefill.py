@@ -204,7 +204,14 @@ async def test_anker_prefill_resolves_controls(hass):
         object_id="anker_usage_mode", device_id=dev.id,
         translation_key="usage_mode", state="manual",
     )
-    socket = _add(
+    # The real AC-charge *enable* switch (MQTT). A decoy ac_socket (the AC output
+    # socket) must NOT be picked for the charge switch.
+    ac_charge = _add(
+        hass, domain="switch", platform="anker_solix", unique_id="sn_acsw",
+        object_id="anker_ac_charge", device_id=dev.id,
+        translation_key="ac_charge_switch", state="off",
+    )
+    _add(
         hass, domain="switch", platform="anker_solix", unique_id="sn_sock",
         object_id="anker_ac_socket", device_id=dev.id,
         translation_key="ac_socket", state="off",
@@ -225,7 +232,7 @@ async def test_anker_prefill_resolves_controls(hass):
     assert result[CONF_BALCONY_SOC] == soc
     assert result[CONF_BALCONY_POWER] == batt_power
     assert result[CONF_MODE_SELECT] == mode
-    assert result[CONF_AC_CHARGE_SWITCH] == socket
+    assert result[CONF_AC_CHARGE_SWITCH] == ac_charge
     assert result[CONF_DISCHARGE_NUMBER] == sys_out
     assert result[CONF_AC_CHARGE_NUMBER] == ac_in
 
@@ -303,6 +310,46 @@ async def test_anker_prefill_prefers_system_soc_and_signs(hass):
     assert result[CONF_BALCONY_DISCHARGE_POSITIVE] is False
     assert result[CONF_MODE_SELECT] == mode
     assert result[CONF_MODE_MANUAL_VALUE] == "manual"
+
+
+async def test_anker_prefill_ac_charge_via_select(hass):
+    # Solarbank 3: no number for AC charge — only a stepped `ac_input_limit`
+    # select (W). It must be suggested for the AC-charge field, and the AC output
+    # socket must never be taken as the AC-charge switch.
+    dev = _device(hass, "anker_solix", "solarbank1")
+    _add(
+        hass, domain="sensor", platform="anker_solix", unique_id="sn_soc",
+        object_id="anker_state_of_charge", device_id=dev.id,
+        device_class="battery", unit="%", translation_key="state_of_charge",
+        state="80",
+    )
+    _add(
+        hass, domain="select", platform="anker_solix", unique_id="sn_mode",
+        object_id="anker_usage_mode", device_id=dev.id,
+        translation_key="usage_mode", state="manual",
+    )
+    _add(
+        hass, domain="switch", platform="anker_solix", unique_id="sn_sock",
+        object_id="anker_ac_socket", device_id=dev.id,
+        translation_key="ac_socket", state="on",
+    )
+    ac_limit = _add(
+        hass, domain="select", platform="anker_solix", unique_id="sn_aclim",
+        object_id="anker_ac_input_limit", device_id=dev.id, unit="W",
+        translation_key="ac_input_limit", state="1200",
+    )
+    sys_out = _add(
+        hass, domain="number", platform="anker_solix", unique_id="sn_out",
+        object_id="anker_system_output", device_id=dev.id, unit="W",
+        translation_key="system_output_power", state="0",
+    )
+
+    result = await suggested_from_anker(hass)
+
+    assert result[CONF_AC_CHARGE_NUMBER] == ac_limit
+    assert result[CONF_DISCHARGE_NUMBER] == sys_out
+    # No ac_charge switch present -> the output socket is NOT used as a fallback.
+    assert CONF_AC_CHARGE_SWITCH not in result
 
 
 # --------------------------------------------------------------------------- #

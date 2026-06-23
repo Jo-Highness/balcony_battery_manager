@@ -20,13 +20,13 @@
       },
       "control": {
         "title": "Balcony Battery Manager – Anker control entities",
-        "description": "Map the Anker Solix entities used to steer the balcony battery. Only standard HA services are used, so the plugin stays robust against Anker integration version changes. These fields may be pre-filled from the anker_solix integration — please review the suggestions.",
+        "description": "Map the Anker Solix entities used to steer the balcony battery. Only standard HA services are used, so the plugin stays robust against Anker integration version changes. These fields may be pre-filled from the anker_solix integration — please review the suggestions. AC charging: the Solarbank 3 has no AC-charge *number*, so the AC charge power field also accepts a Select (e.g. `ac_input_limit`, 0…1200 W). Note: actually triggering AC charging requires the Anker `ac_charge` switch (an MQTT entity, disabled by default in anker_solix) — enable it there and map it above; the select alone only caps the power.",
         "data": {
           "mode_select": "Usage-mode select entity (optional)",
           "mode_manual_value": "Option value that means manual/custom mode",
           "discharge_number": "Number entity: discharge / home-load output preset (W)",
-          "ac_charge_switch": "AC charging switch (optional)",
-          "ac_charge_number": "Number entity: AC charge power / limit (W)",
+          "ac_charge_switch": "AC charging enable switch — Anker `ac_charge` (MQTT), optional",
+          "ac_charge_number": "AC charge power / limit — Number or Select (W), e.g. `ac_input_limit`",
           "deactivation_behavior": "Behaviour when the plugin is disabled",
           "deactivation_mode_value": "Mode value to restore (only for 'restore Anker mode', e.g. Smart/Auto)"
         }
@@ -76,8 +76,8 @@
           "mode_select": "Usage-mode select entity (optional)",
           "mode_manual_value": "Option value that means manual/custom mode",
           "discharge_number": "Number entity: discharge / home-load output preset (W)",
-          "ac_charge_switch": "AC charging switch (optional)",
-          "ac_charge_number": "Number entity: AC charge power / limit (W)",
+          "ac_charge_switch": "AC charging enable switch — Anker `ac_charge` (MQTT), optional",
+          "ac_charge_number": "AC charge power / limit — Number or Select (W), e.g. `ac_input_limit`",
           "deactivation_behavior": "Behaviour when the plugin is disabled",
           "deactivation_mode_value": "Mode value to restore (e.g. Smart/Auto)"
         }

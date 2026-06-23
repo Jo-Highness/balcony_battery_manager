@@ -86,6 +86,13 @@ _SENSOR = selector.EntitySelector(
 _NUMBER_ENTITY = selector.EntitySelector(
     selector.EntitySelectorConfig(domain=["number", "input_number"])
 )
+# AC-charge power may be a stepped select (e.g. Anker `ac_input_limit`) on
+# devices that expose no number for it, so allow select entities too.
+_NUMBER_OR_SELECT_ENTITY = selector.EntitySelector(
+    selector.EntitySelectorConfig(
+        domain=["number", "input_number", "select", "input_select"]
+    )
+)
 _SELECT_ENTITY = selector.EntitySelector(
     selector.EntitySelectorConfig(domain=["select", "input_select"])
 )
@@ -227,7 +234,7 @@ def _control_schema(
             opt(CONF_MODE_MANUAL_VALUE): _TEXT,
             req(CONF_DISCHARGE_NUMBER): _NUMBER_ENTITY,
             opt(CONF_AC_CHARGE_SWITCH): _SWITCH_ENTITY,
-            opt(CONF_AC_CHARGE_NUMBER): _NUMBER_ENTITY,
+            opt(CONF_AC_CHARGE_NUMBER): _NUMBER_OR_SELECT_ENTITY,
             vol.Required(
                 CONF_DEACTIVATION_BEHAVIOR,
                 default=d.get(

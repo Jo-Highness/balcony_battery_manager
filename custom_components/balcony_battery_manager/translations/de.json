@@ -20,13 +20,13 @@
       },
       "control": {
         "title": "Balkon-Batterie-Manager – Anker-Steuer-Entitäten",
-        "description": "Ordne die Anker-Solix-Entitäten zu, über die die Balkonbatterie gesteuert wird. Es werden ausschließlich Standard-HA-Services genutzt, damit das Plugin robust gegen Versionsänderungen der Anker-Integration bleibt. Typisch: Nutzungsmodus -> 'manuell'/'Custom', Ausgabe-/Home-Load-Preset in W für die Entladung, AC-Lade-Schalter + AC-Ladeleistung in W für die Ladung. Diese Felder werden ggf. aus der anker_solix-Integration vorbelegt – bitte die Vorschläge prüfen.",
+        "description": "Ordne die Anker-Solix-Entitäten zu, über die die Balkonbatterie gesteuert wird. Es werden ausschließlich Standard-HA-Services genutzt, damit das Plugin robust gegen Versionsänderungen der Anker-Integration bleibt. Typisch: Nutzungsmodus -> 'manuell'/'Custom', Ausgabe-/Home-Load-Preset in W für die Entladung. AC-Laden: Die Solarbank 3 hat KEINE AC-Lade-*Number* – das Feld AC-Ladeleistung akzeptiert daher auch ein Select (z. B. `ac_input_limit`, 0…1200 W). Wichtig: Das AC-Laden wird erst durch den Anker-`ac_charge`-Schalter (MQTT-Entität, in anker_solix standardmäßig deaktiviert) AUSGELÖST – dort aktivieren und oben zuordnen; das Select begrenzt allein nur die Leistung. Diese Felder werden ggf. aus der anker_solix-Integration vorbelegt – bitte die Vorschläge prüfen.",
         "data": {
           "mode_select": "Nutzungsmodus-Select-Entität (optional)",
           "mode_manual_value": "Optionswert, der den manuellen/Custom-Modus bedeutet",
           "discharge_number": "Number-Entität: Entlade-/Ausgabe-Preset (W)",
-          "ac_charge_switch": "AC-Lade-Schalter (optional)",
-          "ac_charge_number": "Number-Entität: AC-Ladeleistung/-limit (W)",
+          "ac_charge_switch": "AC-Lade-Schalter — Anker `ac_charge` (MQTT), optional",
+          "ac_charge_number": "AC-Ladeleistung/-limit — Number oder Select (W), z. B. `ac_input_limit`",
           "deactivation_behavior": "Verhalten bei Deaktivierung des Plugins",
           "deactivation_mode_value": "Wiederherzustellender Modus-Wert (nur bei 'Anker-Modus wiederherstellen', z. B. Smart/Auto)"
         }
@@ -76,8 +76,8 @@
           "mode_select": "Nutzungsmodus-Select-Entität (optional)",
           "mode_manual_value": "Optionswert, der den manuellen/Custom-Modus bedeutet",
           "discharge_number": "Number-Entität: Entlade-/Ausgabe-Preset (W)",
-          "ac_charge_switch": "AC-Lade-Schalter (optional)",
-          "ac_charge_number": "Number-Entität: AC-Ladeleistung/-limit (W)",
+          "ac_charge_switch": "AC-Lade-Schalter — Anker `ac_charge` (MQTT), optional",
+          "ac_charge_number": "AC-Ladeleistung/-limit — Number oder Select (W), z. B. `ac_input_limit`",
           "deactivation_behavior": "Verhalten bei Deaktivierung des Plugins",
           "deactivation_mode_value": "Wiederherzustellender Modus-Wert (z. B. Smart/Auto)"
         }

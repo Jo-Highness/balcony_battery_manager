@@ -8,6 +8,7 @@ from pytest_homeassistant_custom_component.common import (
 )
 
 from custom_components.balcony_battery_manager.const import (
+    CONF_AC_CHARGE_NUMBER,
     DOMAIN,
     MODE_CHARGING,
     MODE_DISCHARGING,
@@ -63,6 +64,45 @@ async def test_full_charging_cycle_sends_commands(make_coordinator, hass):
         call.data["entity_id"]: call.data["value"] for call in calls["number"]
     }
     assert number_targets[AC_CHARGE_NUMBER] == 400
+
+
+async def test_ac_charge_via_select_floors_to_option(make_coordinator, hass):
+    """AC-charge mapped to a stepped select: target is floored to an option."""
+    calls = _mock_all(hass)
+    ac_select = "select.anker_ac_input_limit"
+    _prime_control_entities(hass, mode="smart", switch="off")
+    hass.states.async_set(
+        ac_select, "0", {"options": ["0", "100", "200", "300", "400", "500", "600"]}
+    )
+    set_inputs(hass, grid=600, main_power=0, balcony_soc=40)
+    await hass.async_block_till_done()
+
+    c = await make_coordinator(**{CONF_AC_CHARGE_NUMBER: ac_select})
+    await c.async_recalculate_now()
+    await hass.async_block_till_done()
+
+    assert c.mode == MODE_CHARGING
+    # Surplus 600 - headroom 200 = 400 -> largest option <= 400 is "400".
+    select_targets = {call.data["entity_id"]: call.data["option"] for call in calls["select"]}
+    assert select_targets[ac_select] == "400"
+    # The applied wattage (not the raw target) is stored for reconstruction.
+    assert c._last_sent_charge == 400
+
+    # Reflect the applied option on the entity (the mock service does not), so the
+    # next "0" command is not skipped as a redundant no-op.
+    hass.states.async_set(
+        ac_select, "400", {"options": ["0", "100", "200", "300", "400", "500", "600"]}
+    )
+    # Now no surplus and main not discharging -> IDLE -> select driven to "0".
+    calls["select"].clear()
+    set_inputs(hass, grid=-300, main_power=0, balcony_soc=40)
+    await hass.async_block_till_done()
+    await c.async_recalculate_now()
+    await hass.async_block_till_done()
+
+    assert c.mode == MODE_IDLE
+    stop_targets = {call.data["entity_id"]: call.data["option"] for call in calls["select"]}
+    assert stop_targets[ac_select] == "0"
 
 
 async def test_deadband_prevents_double_send(make_coordinator, hass):

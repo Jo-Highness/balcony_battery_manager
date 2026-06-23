@@ -67,7 +67,9 @@ _POWER_UNITS = {"w", "kw"}
 _SOC_PREFERENCE = ("state_of_charge", "main_battery_soc")
 _BATTERY_POWER_SUFFIXES = ("battery_power",)
 _USAGE_MODE_SUFFIXES = ("usage_mode",)
-_AC_SOCKET_SUFFIXES = ("ac_socket", "ac_output", "output_switch")
+# AC-charge *enable* switch (the MQTT `ac_charge` switch that actually triggers
+# grid charging) — deliberately NOT `ac_socket`, which is the AC *output* socket.
+_AC_CHARGE_SWITCH_SUFFIXES = ("ac_charge_switch", "ac_charge")
 # System / home output preset (the discharge / home-load number).
 _SYSTEM_OUTPUT_SUFFIXES = (
     "system_output_power",
@@ -392,17 +394,28 @@ async def suggested_from_anker(hass: HomeAssistant) -> dict[str, Any]:
         if (manual := _manual_option(hass, val)) is not None:
             out[CONF_MODE_MANUAL_VALUE] = manual
 
-    # AC-socket switch.
-    if (val := _pick(switches, _AC_SOCKET_SUFFIXES)) is not None:
-        out[CONF_AC_CHARGE_SWITCH] = val
+    # AC-charge enable switch: strict suffix match (no single-switch fallback)
+    # so the unrelated AC output socket can never be mis-picked.
+    ac_charge_sw = [
+        e for e in switches if _matches_suffix(e, _AC_CHARGE_SWITCH_SUFFIXES)
+    ]
+    if len(ac_charge_sw) == 1:
+        out[CONF_AC_CHARGE_SWITCH] = ac_charge_sw[0].entity_id
 
-    # The two W-number controls. Disjoint suffix sets + unique-candidate rule
-    # make a wrong mapping impossible; an entity matching both is dropped.
+    # The two W controls (system output for discharge; AC input limit for the
+    # charge cap). Disjoint suffix sets + unique-candidate rule make a wrong
+    # mapping impossible. The AC-charge limit may be a number OR a stepped select
+    # (e.g. Anker `ac_input_limit`), so selects with a W unit are considered too.
     w_numbers = [
         e for e in numbers if (u := _unit(hass, e)) and u.strip().lower() == "w"
     ]
+    w_selects = [
+        e for e in selects if (u := _unit(hass, e)) and u.strip().lower() == "w"
+    ]
     system_out = [e for e in w_numbers if _matches_suffix(e, _SYSTEM_OUTPUT_SUFFIXES)]
-    ac_input = [e for e in w_numbers if _matches_suffix(e, _AC_INPUT_SUFFIXES)]
+    ac_input = [
+        e for e in (w_numbers + w_selects) if _matches_suffix(e, _AC_INPUT_SUFFIXES)
+    ]
     ambiguous = {e.entity_id for e in system_out} & {e.entity_id for e in ac_input}
     system_out = [e for e in system_out if e.entity_id not in ambiguous]
     ac_input = [e for e in ac_input if e.entity_id not in ambiguous]

@@ -624,15 +624,19 @@ class BalconyBatteryCoordinator(DataUpdateCoordinator[dict]):
         entity_id = self._config.get(CONF_DISCHARGE_NUMBER)
         if not entity_id:
             return
-        if self._exceeds_deadband(target, self._last_sent_discharge):
-            await self._set_number(entity_id, target)
-        self._last_sent_discharge = target
+        self._last_sent_discharge = await self._write_power_entity(
+            entity_id, target, self._last_sent_discharge
+        )
 
     async def _set_ac_charge_power(self, target: float) -> None:
         entity_id = self._config.get(CONF_AC_CHARGE_NUMBER)
-        if entity_id and self._exceeds_deadband(target, self._last_sent_charge):
-            await self._set_number(entity_id, target)
-        self._last_sent_charge = target
+        if not entity_id:
+            # No charge-power control mapped: keep the reconstruction value sane.
+            self._last_sent_charge = target
+            return
+        self._last_sent_charge = await self._write_power_entity(
+            entity_id, target, self._last_sent_charge
+        )
 
     async def _set_ac_charge_switch(self, on: bool) -> None:
         entity_id = self._config.get(CONF_AC_CHARGE_SWITCH)
@@ -652,6 +656,59 @@ class BalconyBatteryCoordinator(DataUpdateCoordinator[dict]):
         """True if ``new`` differs from the last sent value by > the dead-band."""
         return abs(new - last) > self.deadband
 
+    async def _write_power_entity(
+        self, entity_id: str, target: float, last_sent: float
+    ) -> float:
+        """Write a power setpoint to a ``number`` *or* ``select`` entity.
+
+        Some devices (e.g. the Anker Solarbank 3) expose the AC-charge power only
+        as a stepped ``select`` (``ac_input_limit``), not a number. For a select
+        we pick the closest option ``<= target`` (see :meth:`_option_for`); for a
+        number we keep the original dead-band behaviour. Returns the value that
+        was actually applied so the caller can store it as ``last sent`` — for a
+        select that is the chosen option's wattage, which keeps the surplus /
+        deficit reconstruction consistent with what the hardware was really told.
+        """
+        domain = entity_id.split(".", 1)[0]
+        if domain in ("select", "input_select"):
+            option, applied = self._option_for(entity_id, target)
+            if option is None:
+                return last_sent
+            current = self.hass.states.get(entity_id)
+            if current is None or current.state != option:
+                await self._select_option(entity_id, option)
+            return applied
+        # number / input_number
+        if self._exceeds_deadband(target, last_sent):
+            await self._set_number(entity_id, target)
+        return target
+
+    def _option_for(
+        self, entity_id: str, value: float
+    ) -> tuple[str | None, float]:
+        """Pick the select option closest to ``value`` without exceeding it.
+
+        Stepped W-options (e.g. ``ac_input_limit`` 0/100/…/1200) are matched by
+        flooring to the largest available option ``<= value`` so the plugin never
+        asks for more than the computed surplus; ``value`` of 0 therefore selects
+        ``"0"`` (stop). If every option is larger than ``value`` the smallest is
+        used. Non-numeric options are ignored. Returns ``(option_string,
+        numeric_value)`` or ``(None, value)`` when nothing usable is found.
+        """
+        state = self.hass.states.get(entity_id)
+        options = state.attributes.get("options") if state else None
+        pairs: list[tuple[str, float]] = []
+        for option in options or []:
+            parsed = _to_float(option)
+            if parsed is not None:
+                pairs.append((str(option), parsed))
+        if not pairs:
+            return None, value
+        at_or_below = [pair for pair in pairs if pair[1] <= value]
+        if at_or_below:
+            return max(at_or_below, key=lambda pair: pair[1])
+        return min(pairs, key=lambda pair: pair[1])
+
     async def _set_number(self, entity_id: str, value: float) -> None:
         await self.hass.services.async_call(
             "number",
@@ -662,8 +719,10 @@ class BalconyBatteryCoordinator(DataUpdateCoordinator[dict]):
         self._mark_command()
 
     async def _select_option(self, entity_id: str, option: str) -> None:
+        # Derive the service domain so both `select` and `input_select` work.
+        domain = entity_id.split(".", 1)[0]
         await self.hass.services.async_call(
-            "select",
+            domain,
             "select_option",
             {ATTR_ENTITY_ID: entity_id, "option": option},
             blocking=True,
