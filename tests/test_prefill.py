@@ -11,16 +11,21 @@ from homeassistant.helpers import device_registry as dr, entity_registry as er
 from custom_components.balcony_battery_manager.const import (
     CONF_AC_CHARGE_NUMBER,
     CONF_AC_CHARGE_SWITCH,
+    CONF_BALCONY_DISCHARGE_POSITIVE,
     CONF_BALCONY_POWER,
     CONF_BALCONY_SOC,
     CONF_DISCHARGE_NUMBER,
+    CONF_GRID_EXPORT_POSITIVE,
     CONF_GRID_POWER,
+    CONF_MAIN_DISCHARGE_POSITIVE,
     CONF_MAIN_POWER,
     CONF_MAIN_SOC,
+    CONF_MODE_MANUAL_VALUE,
     CONF_MODE_SELECT,
 )
 from custom_components.balcony_battery_manager.prefill import (
     suggested_from_anker,
+    suggested_from_e3dc,
     suggested_inputs_from_energy,
 )
 
@@ -253,3 +258,83 @@ async def test_anker_prefill_ambiguous_numbers_left_blank(hass):
 
 async def test_anker_prefill_no_device(hass):
     assert await suggested_from_anker(hass) == {}
+
+
+async def test_anker_prefill_prefers_system_soc_and_signs(hass):
+    # A real Solarbank exposes several battery-% sensors; the whole-system
+    # state_of_charge must win over main_battery_soc / expansion packs.
+    dev = _device(hass, "anker_solix", "solarbank1")
+    soc = _add(
+        hass, domain="sensor", platform="anker_solix", unique_id="sn_soc",
+        object_id="anker_state_of_charge", device_id=dev.id,
+        device_class="battery", unit="%", translation_key="state_of_charge",
+        state="85",
+    )
+    _add(
+        hass, domain="sensor", platform="anker_solix", unique_id="sn_msoc",
+        object_id="anker_main_battery_soc", device_id=dev.id,
+        device_class="battery", unit="%", translation_key="main_battery_soc",
+        state="94",
+    )
+    _add(
+        hass, domain="sensor", platform="anker_solix", unique_id="sn_exp1",
+        object_id="anker_exp_1_soc", device_id=dev.id,
+        device_class="battery", unit="%", translation_key="exp_1_soc",
+        state="95",
+    )
+    batt_power = _add(
+        hass, domain="sensor", platform="anker_solix", unique_id="sn_bp",
+        object_id="anker_battery_power", device_id=dev.id,
+        device_class="power", unit="W", translation_key="battery_power",
+        state="-799",
+    )
+    mode = _add(
+        hass, domain="select", platform="anker_solix", unique_id="sn_mode",
+        object_id="anker_usage_mode", device_id=dev.id,
+        translation_key="usage_mode", state="manual",
+    )
+    # The select must advertise its options for the manual-value detection.
+    hass.states.async_set(mode, "manual", {"options": ["backup", "manual"]})
+
+    result = await suggested_from_anker(hass)
+
+    assert result[CONF_BALCONY_SOC] == soc
+    assert result[CONF_BALCONY_POWER] == batt_power
+    assert result[CONF_BALCONY_DISCHARGE_POSITIVE] is False
+    assert result[CONF_MODE_SELECT] == mode
+    assert result[CONF_MODE_MANUAL_VALUE] == "manual"
+
+
+# --------------------------------------------------------------------------- #
+# Feature 3: E3DC (KNX) roof-system pattern prefill
+# --------------------------------------------------------------------------- #
+async def test_e3dc_pattern_prefill_resolves_and_signs(hass):
+    # E3DC bridged via KNX: no device, not in the energy dashboard. Detection is
+    # purely by entity_id pattern, and the E3DC sign convention is emitted.
+    grid = _add(
+        hass, domain="sensor", platform="knx", unique_id="0/3/4",
+        object_id="e3dc_gridpowerconsumption", device_id=None,
+        device_class="power", unit="W", state="-65",
+    )
+    main = _add(
+        hass, domain="sensor", platform="knx", unique_id="0/3/5",
+        object_id="e3dc_batterypowerconsumption", device_id=None,
+        device_class="power", unit="W", state="-2406",
+    )
+    # Energy counters with "e3dc" in the id must never be picked as power.
+    _add(
+        hass, domain="sensor", platform="knx", unique_id="0/3/9",
+        object_id="e3dc_grid_consumption_kwh", device_id=None,
+        device_class="energy", unit="kWh", state="19665",
+    )
+
+    result = await suggested_from_e3dc(hass)
+
+    assert result[CONF_GRID_POWER] == grid
+    assert result[CONF_GRID_EXPORT_POSITIVE] is False
+    assert result[CONF_MAIN_POWER] == main
+    assert result[CONF_MAIN_DISCHARGE_POSITIVE] is False
+
+
+async def test_e3dc_pattern_prefill_no_match(hass):
+    assert await suggested_from_e3dc(hass) == {}

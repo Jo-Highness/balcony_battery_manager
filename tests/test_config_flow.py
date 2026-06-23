@@ -10,12 +10,18 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.balcony_battery_manager.const import (
     CONF_GRID_POWER,
     CONF_GRID_POWER_UNIT,
+    CONF_MAIN_DISCHARGE_POSITIVE,
+    CONF_MAIN_SOC,
     DEFAULT_POWER_UNIT,
     DOMAIN,
 )
 from tests.conftest import build_data, set_inputs
 
 _FLOW = "custom_components.balcony_battery_manager.config_flow"
+
+
+async def _no_suggestions(_hass):
+    return {}
 
 
 def _marker(schema, key):
@@ -47,8 +53,8 @@ async def test_initial_flow_prefills_and_unit_default(hass):
         return {}
 
     with patch(f"{_FLOW}.suggested_inputs_from_energy", _energy), patch(
-        f"{_FLOW}.suggested_from_anker", _anker
-    ):
+        f"{_FLOW}.suggested_from_e3dc", _no_suggestions
+    ), patch(f"{_FLOW}.suggested_from_anker", _anker):
         result = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": "user"}
         )
@@ -57,6 +63,40 @@ async def test_initial_flow_prefills_and_unit_default(hass):
     assert _suggested(schema, CONF_GRID_POWER) == "sensor.suggested_grid"
     # The new unit selector defaults to "auto" so existing entries are unchanged.
     assert _default(schema, CONF_GRID_POWER_UNIT) == DEFAULT_POWER_UNIT
+
+
+def _is_optional(schema, key):
+    marker = _marker(schema, key)
+    return isinstance(marker, vol.Optional)
+
+
+async def test_main_soc_is_optional(hass):
+    # A roof system without a SOC sensor (E3DC via KNX) must still be able to
+    # finish setup, so main_soc is Optional — not Required.
+    with patch(f"{_FLOW}.suggested_inputs_from_energy", _no_suggestions), patch(
+        f"{_FLOW}.suggested_from_e3dc", _no_suggestions
+    ), patch(f"{_FLOW}.suggested_from_anker", _no_suggestions):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": "user"}
+        )
+
+    assert _is_optional(result["data_schema"], CONF_MAIN_SOC)
+
+
+async def test_sign_suggestion_flows_into_default(hass):
+    # A vendor resolver (e.g. E3DC) may suggest the sign convention; it must
+    # reach the form as the field default.
+    async def _e3dc(_hass):
+        return {CONF_MAIN_DISCHARGE_POSITIVE: False}
+
+    with patch(f"{_FLOW}.suggested_inputs_from_energy", _no_suggestions), patch(
+        f"{_FLOW}.suggested_from_e3dc", _e3dc
+    ), patch(f"{_FLOW}.suggested_from_anker", _no_suggestions):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": "user"}
+        )
+
+    assert _default(result["data_schema"], CONF_MAIN_DISCHARGE_POSITIVE) is False
 
 
 async def test_options_flow_does_not_prefill(hass):

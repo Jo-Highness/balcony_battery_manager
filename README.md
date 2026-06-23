@@ -48,14 +48,38 @@ Die gesamte Konfiguration läuft über die UI (Config-Flow), nachträglich jeder
 >   hinterlegten Energie-Statistiken (kWh) wird das jeweilige Gerät aufgelöst und am selben
 >   Gerät der passende **Leistungs-** (W/kW) bzw. **SoC-Sensor** (%) gesucht. Eine kWh-Entität
 >   wird **nie** in ein Leistungsfeld geschrieben.
-> - **Balkon- und Anker-Steuer-Felder** aus der `anker_solix`-Integration (genau **ein**
->   Solarbank-Gerät). Die Zuordnung erfolgt über `translation_key`/`unique_id`-Suffixe, nicht
->   über lokalisierte Namen. Mehrdeutige Felder bleiben leer.
+> - **E3DC** (Dachsystem) per **Muster**, falls es – wie häufig über KNX/RSCP – **kein** HA-Gerät
+>   und keinen Energie-Dashboard-Eintrag hat: erkannt werden `sensor.*gridpowerconsumption` →
+>   Netzleistung und `sensor.*batterypowerconsumption` → Hauptbatterie-Leistung. Die
+>   **Vorzeichen** werden gleich passend gesetzt (E3DC-Konvention: Netz positiv = Bezug,
+>   Batterie positiv = Laden → beide „positiv = Einspeisung/Entladung“-Schalter **aus**).
+> - **Balkon- und Anker-Steuer-Felder** aus der `anker_solix`-Integration (Solarbank-Gerät, am
+>   `usage_mode`-Select erkannt). SOC nach Präferenz `state_of_charge` > `main_battery_soc`
+>   (nie ein Expansion-Pack); `battery_power` (negativ = Entladung → Schalter aus); der
+>   Manual-Modus-Wert wird aus den Select-Optionen abgeleitet. Zuordnung über
+>   `translation_key`/`unique_id`-Suffixe, nicht über lokalisierte Namen.
 >
 > Vorgeschlagen wird nur, wenn die Zuordnung **eindeutig** ist; sonst bleibt das Feld leer
-> (kein Fehler). Im Options-Flow wird **nicht** vorbelegt. Hinweis: Viele Anker-Steuer-
-> Entitäten (z. B. *System output*, *AC input limit*) sind in `anker_solix` standardmäßig
-> **deaktiviert** und werden erst nach dem Aktivieren vorgeschlagen.
+> (kein Fehler). Auch **Vorzeichen** und **Manual-Wert** sind nur Vorschläge und korrigierbar.
+> Im Options-Flow wird **nicht** vorbelegt. Hinweis: Viele Anker-Steuer-Entitäten (z. B.
+> *System output*, *AC input limit*) sind in `anker_solix` standardmäßig **deaktiviert** und
+> werden erst nach dem Aktivieren vorgeschlagen.
+
+> [!NOTE]
+> **Referenz-Setup (out-of-the-box getestet): E3DC-Dachanlage + Anker Solarbank 3.** Mit dieser
+> Kombination werden die Pflichtfelder automatisch vorbelegt – du musst die Vorschläge nur
+> bestätigen:
+>
+> | Konfig-Feld | vorgeschlagene Entität |
+> |-------------|------------------------|
+> | Netzleistung | `sensor.e3dc_gridpowerconsumption` (W) · Einspeisung=positiv **aus** |
+> | Hauptbatterie-Leistung | `sensor.e3dc_batterypowerconsumption` (W) · Entladung=positiv **aus** |
+> | SOC Hauptbatterie | *(E3DC liefert keinen SOC → leer lassen; nur Netz-Unterstützung entfällt)* |
+> | SOC Balkon | `sensor.solarbank_3_e2700_pro_state_of_charge` (%) |
+> | Balkon-Leistung | `sensor.solarbank_3_e2700_pro_battery_power` (W) · Entladung=positiv **aus** |
+> | Nutzungsmodus-Select + Wert | `select.solarbank_3_e2700_pro_usage_mode` → `manual` |
+> | Entlade-/Ausgabe-Preset | `number.solarbank_3_e2700_pro_system_output_preset` (W, 0–800) |
+> | AC-Lade-Schalter / -Number | *(in diesem Setup nicht zwingend – optional leer)* |
 
 ### 1. Eingangs-Messwerte (nur lesen)
 | Feld | Bedeutung |
@@ -63,7 +87,7 @@ Die gesamte Konfiguration läuft über die UI (Config-Flow), nachträglich jeder
 | Netz-/Hausleistungssensor | Leistung am Netzübergabepunkt der Hauptanlage |
 | Einheit der Netzleistung | `auto` / `W` / `kW` (siehe *W/kW-Handling* unten, Default: `auto`) |
 | Positiver Wert = Einspeisung | Vorzeichen-Konvention (Default: an). Bei umgekehrter Zählung deaktivieren. |
-| SOC Hauptbatterie (%) | Ladestand des Dach-Akkus |
+| SOC Hauptbatterie (%) | Ladestand des Dach-Akkus – **optional**; nur nötig für die *Netz-Unterstützung*. Fehlt der Sensor (z. B. E3DC via KNX), Feld einfach leer lassen. |
 | Lade-/Entladeleistung Hauptbatterie | + Einheit + „Entladung = positiv“ (Default: an) |
 | SOC Balkonkraftwerk-Batterie (%) | Ladestand der Anker-Batterie |
 | Lade-/Entladeleistung Balkonkraftwerk | + Einheit + „Entladung = positiv“ (Default: an) |

@@ -3,12 +3,12 @@
     "step": {
       "user": {
         "title": "Balkon-Batterie-Manager – Eingangs-Messwerte",
-        "description": "Wähle die Sensoren deiner bestehenden Dach-PV-Anlage mit Hauptbatterie. Diese werden nur gelesen – die Balkonbatterie nutzt bewusst NICHT denselben zentralen Leistungsmesser, damit sich beide Speicher nicht gegenseitig ausspielen. Netz- und Hauptbatterie-Felder werden ggf. automatisch aus dem Energie-Dashboard vorgeschlagen, die Balkon-Felder aus der anker_solix-Integration – bitte die Vorschläge prüfen.",
+        "description": "Wähle die Sensoren deiner bestehenden Dach-PV-Anlage mit Hauptbatterie (z. B. E3DC). Diese werden nur gelesen – die Balkonbatterie nutzt bewusst NICHT denselben zentralen Leistungsmesser, damit sich beide Speicher nicht gegenseitig ausspielen. Netz- und Hauptbatterie-Felder werden aus dem Energie-Dashboard bzw. für E3DC per Muster vorbelegt, die Balkon-Felder und Anker-Steuerung aus der anker_solix-Integration. Auch das Vorzeichen (Einspeisung/Entladung = positiv) wird vorgeschlagen – bitte prüfen. Der SOC der Hauptbatterie ist optional und aktiviert nur die Netz-Unterstützung.",
         "data": {
           "grid_power": "Netz-/Hausleistungssensor",
           "grid_power_unit": "Einheit der Netzleistung (auto / W / kW)",
           "grid_export_positive": "Positiver Wert = Einspeisung (ins Netz)",
-          "main_soc": "SOC Hauptbatterie (%)",
+          "main_soc": "SOC Hauptbatterie (%) — optional, nur für Netz-Unterstützung",
           "main_power": "Lade-/Entladeleistung Hauptbatterie",
           "main_power_unit": "Einheit der Hauptbatterie-Leistung (auto / W / kW)",
           "main_discharge_positive": "Hauptbatterie: Entladung = positiv",
@@ -60,7 +60,7 @@
           "grid_power": "Netz-/Hausleistungssensor",
           "grid_power_unit": "Einheit der Netzleistung (auto / W / kW)",
           "grid_export_positive": "Positiver Wert = Einspeisung (ins Netz)",
-          "main_soc": "SOC Hauptbatterie (%)",
+          "main_soc": "SOC Hauptbatterie (%) — optional, nur für Netz-Unterstützung",
           "main_power": "Lade-/Entladeleistung Hauptbatterie",
           "main_power_unit": "Einheit der Hauptbatterie-Leistung (auto / W / kW)",
           "main_discharge_positive": "Hauptbatterie: Entladung = positiv",

@@ -1,21 +1,26 @@
 """Best-effort config-flow pre-fill helpers.
 
-Two pure look-ups produce ``{CONF_*: entity_id}`` suggestions for the initial
-config flow:
+Three pure look-ups produce ``{CONF_*: value}`` suggestions for the initial
+config flow. Values are entity_ids for the sensor/control fields, and bool /
+str for the sign and manual-mode fields:
 
-* :func:`suggested_inputs_from_energy` resolves the grid / main-battery power &
-  SoC sensors from the Home Assistant **Energy Dashboard**. The dashboard stores
-  *energy* statistics (kWh), so we never copy those into a power field — instead
-  we walk energy-entity -> device -> sibling *power* / *battery* entity.
+* :func:`suggested_inputs_from_energy` resolves grid / main-battery power & SoC
+  sensors from the Home Assistant **Energy Dashboard** (energy-entity -> device
+  -> sibling power/battery entity).
+* :func:`suggested_from_e3dc` is a **vendor pattern** fallback for the roof /
+  main system when it is *not* exposed as a HA device or energy source — most
+  notably **E3DC**, which here is integrated via KNX group addresses
+  (``platform == "knx"``, ``device_id is None``) and therefore never appears in
+  the energy dashboard or as a walkable device. It matches by entity_id pattern
+  and also emits the correct sign convention.
 * :func:`suggested_from_anker` resolves the balcony-battery inputs and the Anker
-  control entities from a single ``anker_solix`` Solarbank device.
+  control entities from the ``anker_solix`` Solarbank.
 
-Both functions are deliberately conservative: a suggestion is only emitted when
-exactly **one** candidate matches, otherwise the field is left empty. Matching
+All resolvers are deliberately conservative: a suggestion is only emitted when a
+candidate is unambiguous (a single match, or a uniquely preferred one). Matching
 prefers the registry ``translation_key`` / ``unique_id`` suffix over localized
-display names (which change with the UI language). Nothing here ever raises;
-every failure path simply yields fewer suggestions, and the caller only ever
-uses the result as ``suggested_value``.
+display names. Nothing here ever raises; every failure path simply yields fewer
+suggestions, and the caller only ever uses the result as ``suggested_value``.
 """
 
 from __future__ import annotations
@@ -29,12 +34,16 @@ from homeassistant.helpers import device_registry as dr, entity_registry as er
 from .const import (
     CONF_AC_CHARGE_NUMBER,
     CONF_AC_CHARGE_SWITCH,
+    CONF_BALCONY_DISCHARGE_POSITIVE,
     CONF_BALCONY_POWER,
     CONF_BALCONY_SOC,
     CONF_DISCHARGE_NUMBER,
+    CONF_GRID_EXPORT_POSITIVE,
     CONF_GRID_POWER,
+    CONF_MAIN_DISCHARGE_POSITIVE,
     CONF_MAIN_POWER,
     CONF_MAIN_SOC,
+    CONF_MODE_MANUAL_VALUE,
     CONF_MODE_SELECT,
 )
 
@@ -45,12 +54,17 @@ ANKER_DOMAIN = "anker_solix"
 _POWER_UNITS = {"w", "kw"}
 
 # --- anker_solix translation_key / unique_id suffix allowlists ---------------
-# Matching is "exactly one candidate or nothing", and the two W-number sets are
-# disjoint, so a wrong assignment is structurally impossible: a number that
-# cannot be told apart simply yields no suggestion. The Anker control entities
-# are disabled by default in the integration, so these may not match until the
-# user enables them — that is fine, the field just stays empty.
-_SOC_SUFFIXES = ("state_of_charge", "soc")
+# Matching is "unambiguous or nothing", so a wrong assignment is structurally
+# impossible: a candidate that cannot be told apart simply yields no suggestion.
+# Several Anker control entities are disabled by default in the integration, so
+# these may not match until the user enables them — that is fine, the field just
+# stays empty.
+#
+# SoC is matched by *ordered* preference because a Solarbank exposes several
+# battery-% sensors (whole-system ``state_of_charge``, ``main_battery_soc`` and
+# one ``exp_N_soc`` per expansion pack); we want the whole-system value and must
+# not pick an expansion pack.
+_SOC_PREFERENCE = ("state_of_charge", "main_battery_soc")
 _BATTERY_POWER_SUFFIXES = ("battery_power",)
 _USAGE_MODE_SUFFIXES = ("usage_mode",)
 _AC_SOCKET_SUFFIXES = ("ac_socket", "ac_output", "output_switch")
@@ -71,6 +85,15 @@ _AC_INPUT_SUFFIXES = (
     "ac_charge_limit",
     "charge_power_limit",
 )
+
+# --- E3DC (roof system) entity_id patterns -----------------------------------
+# E3DC's RSCP/KNX power values follow the "consumption" sign convention:
+#   grid:    positive == drawing FROM the grid (import), negative == export
+#   battery: positive == charging,                       negative == discharging
+# so both "discharge/export = positive" flags must default to False.
+_E3DC_TOKEN = "e3dc"
+_E3DC_GRID_PATTERNS = ("gridpowerconsumption", "grid_power_consumption")
+_E3DC_MAIN_PATTERNS = ("batterypowerconsumption", "battery_power_consumption")
 
 
 # --- small registry helpers --------------------------------------------------
@@ -96,6 +119,14 @@ def _unit(hass: HomeAssistant, ent: er.RegistryEntry) -> str | None:
     return None
 
 
+def _is_power(hass: HomeAssistant, ent: er.RegistryEntry) -> bool:
+    """True if the entity looks like a power sensor (device_class or W/kW)."""
+    if _device_class(hass, ent) == "power":
+        return True
+    unit = _unit(hass, ent)
+    return bool(unit and unit.strip().lower() in _POWER_UNITS)
+
+
 def _matches_suffix(ent: er.RegistryEntry, suffixes: tuple[str, ...]) -> bool:
     """True if the entity's translation_key / unique_id ends with a suffix."""
     tk = (ent.translation_key or "").lower()
@@ -108,15 +139,41 @@ def _matches_suffix(ent: er.RegistryEntry, suffixes: tuple[str, ...]) -> bool:
 def _pick(
     entities: list[er.RegistryEntry], suffixes: tuple[str, ...]
 ) -> str | None:
-    """Return the single best candidate's entity_id, or None if ambiguous.
-
-    If there is exactly one candidate it is used directly; otherwise the list is
-    narrowed by suffix and only a unique remaining match is returned.
-    """
+    """Return the single best candidate's entity_id, or None if ambiguous."""
     if len(entities) == 1:
         return entities[0].entity_id
     narrowed = [e for e in entities if _matches_suffix(e, suffixes)]
     return narrowed[0].entity_id if len(narrowed) == 1 else None
+
+
+def _pick_preferred(
+    entities: list[er.RegistryEntry], preference: tuple[str, ...]
+) -> str | None:
+    """Pick by *ordered* suffix preference; each step must be unique.
+
+    Tries each suffix in order and returns the first that matches exactly one
+    entity. Falls back to the sole candidate when there is only one overall.
+    """
+    for suffix in preference:
+        matches = [e for e in entities if _matches_suffix(e, (suffix,))]
+        if len(matches) == 1:
+            return matches[0].entity_id
+    return entities[0].entity_id if len(entities) == 1 else None
+
+
+def _manual_option(hass: HomeAssistant, entity_id: str) -> str | None:
+    """Best guess for the select option that means 'manual / custom' mode."""
+    state = hass.states.get(entity_id)
+    if state is None:
+        return None
+    options = state.attributes.get("options") or []
+    if "manual" in options:
+        return "manual"
+    # Solarbank 3 exposes exactly ["backup", "manual"]; if one is the (useless)
+    # backup mode, the other is the usable manual/custom mode.
+    if len(options) == 2 and "backup" in options:
+        return next(o for o in options if o != "backup")
+    return None
 
 
 def _device_id_for_stat(
@@ -138,10 +195,7 @@ def _power_sensor_for_device(
     ):
         if ent.domain != "sensor":
             continue
-        unit = _unit(hass, ent)
-        if _device_class(hass, ent) == "power" or (
-            unit and unit.strip().lower() in _POWER_UNITS
-        ):
+        if _is_power(hass, ent):
             candidates.append(ent.entity_id)
     return candidates[0] if len(candidates) == 1 else None
 
@@ -162,11 +216,7 @@ def _soc_sensor_for_device(
 
 
 def _first_grid_stat(source: dict[str, Any]) -> str | None:
-    """Pick any energy statistic that identifies the grid device.
-
-    Real HA stores grid flows as ``flow_from[]`` / ``flow_to[]`` lists; some
-    representations flatten them onto the source. Both shapes are handled.
-    """
+    """Pick any energy statistic that identifies the grid device."""
     for key in ("flow_from", "flow_to"):
         for flow in source.get(key) or []:
             stat = flow.get("stat_energy_from") or flow.get("stat_energy_to")
@@ -176,9 +226,9 @@ def _first_grid_stat(source: dict[str, Any]) -> str | None:
 
 
 # --- public resolvers --------------------------------------------------------
-async def suggested_inputs_from_energy(hass: HomeAssistant) -> dict[str, str]:
+async def suggested_inputs_from_energy(hass: HomeAssistant) -> dict[str, Any]:
     """Best-effort grid / main-battery suggestions from the Energy Dashboard."""
-    out: dict[str, str] = {}
+    out: dict[str, Any] = {}
     try:
         from homeassistant.components.energy.data import async_get_manager
 
@@ -212,13 +262,58 @@ async def suggested_inputs_from_energy(hass: HomeAssistant) -> dict[str, str]:
     return out
 
 
+def _e3dc_power_match(
+    hass: HomeAssistant,
+    sensors: list[er.RegistryEntry],
+    patterns: tuple[str, ...],
+) -> str | None:
+    """The single E3DC power sensor whose entity_id contains one of patterns."""
+    candidates = [
+        e.entity_id
+        for e in sensors
+        if any(p in e.entity_id.lower() for p in patterns) and _is_power(hass, e)
+    ]
+    return candidates[0] if len(candidates) == 1 else None
+
+
+async def suggested_from_e3dc(hass: HomeAssistant) -> dict[str, Any]:
+    """Best-effort roof-system suggestions for an E3DC installation.
+
+    Pattern-based (entity_id) because E3DC is frequently bridged via KNX/RSCP
+    without a HA device or energy-dashboard entry, so the device/energy walk in
+    :func:`suggested_inputs_from_energy` finds nothing. Also emits the E3DC sign
+    convention so the user does not have to reason about it.
+    """
+    out: dict[str, Any] = {}
+    ent_reg = er.async_get(hass)
+    sensors = [
+        e
+        for e in ent_reg.entities.values()
+        if e.domain == "sensor" and _E3DC_TOKEN in e.entity_id.lower()
+    ]
+    if not sensors:
+        return out
+
+    grid = _e3dc_power_match(hass, sensors, _E3DC_GRID_PATTERNS)
+    if grid:
+        out[CONF_GRID_POWER] = grid
+        out[CONF_GRID_EXPORT_POSITIVE] = False  # E3DC: positive == grid import
+
+    main = _e3dc_power_match(hass, sensors, _E3DC_MAIN_PATTERNS)
+    if main:
+        out[CONF_MAIN_POWER] = main
+        out[CONF_MAIN_DISCHARGE_POSITIVE] = False  # E3DC: negative == discharge
+
+    return out
+
+
 def _anker_solarbank_device(hass: HomeAssistant) -> str | None:
-    """The single anker_solix Solarbank device, or None if not unambiguous.
+    """The controllable anker_solix Solarbank device, or None if ambiguous.
 
     The integration creates several devices (a virtual system device, the
-    Solarbank, possibly an inverter). We prefer the device that carries a
-    battery-SoC sensor; if that is unique we use it, else if there is exactly
-    one anker_solix device at all we fall back to that.
+    Solarbank, possibly an inverter). We prefer the device that carries the
+    ``usage_mode`` select (the one we actually steer); failing that, a device
+    with a unique battery-SoC sensor, and finally the sole anker_solix device.
     """
     dev_reg = dr.async_get(hass)
     ent_reg = er.async_get(hass)
@@ -230,21 +325,31 @@ def _anker_solarbank_device(hass: HomeAssistant) -> str | None:
     if not anker:
         return None
 
-    solarbanks = [
+    for device in anker:
+        ents = er.async_entries_for_device(
+            ent_reg, device.id, include_disabled_entities=True
+        )
+        if any(
+            e.domain == "select" and _matches_suffix(e, _USAGE_MODE_SUFFIXES)
+            for e in ents
+        ):
+            return device.id
+
+    with_soc = [
         device
         for device in anker
         if _soc_sensor_for_device(hass, ent_reg, device.id) is not None
     ]
-    if len(solarbanks) == 1:
-        return solarbanks[0].id
+    if len(with_soc) == 1:
+        return with_soc[0].id
     if len(anker) == 1:
         return anker[0].id
     return None
 
 
-async def suggested_from_anker(hass: HomeAssistant) -> dict[str, str]:
+async def suggested_from_anker(hass: HomeAssistant) -> dict[str, Any]:
     """Best-effort balcony / Anker-control suggestions from anker_solix."""
-    out: dict[str, str] = {}
+    out: dict[str, Any] = {}
     device_id = _anker_solarbank_device(hass)
     if not device_id:
         return out
@@ -259,31 +364,33 @@ async def suggested_from_anker(hass: HomeAssistant) -> dict[str, str]:
     switches = [e for e in entities if e.domain == "switch"]
     numbers = [e for e in entities if e.domain == "number"]
 
-    # Balcony SoC: a battery-% sensor.
-    soc = [
+    # Balcony SoC: a battery-% sensor, by ordered preference (avoid exp packs).
+    soc_sensors = [
         e
         for e in sensors
         if _device_class(hass, e) == "battery" and _unit(hass, e) == "%"
     ]
-    if (val := _pick(soc, _SOC_SUFFIXES)) is not None:
+    if (val := _pick_preferred(soc_sensors, _SOC_PREFERENCE)) is not None:
         out[CONF_BALCONY_SOC] = val
 
     # Balcony power: a power sensor; narrow to the "battery power" one.
-    power = [
-        e
-        for e in sensors
-        if _device_class(hass, e) == "power"
-        or ((u := _unit(hass, e)) and u.strip().lower() in _POWER_UNITS)
-    ]
+    power = [e for e in sensors if _is_power(hass, e)]
     narrowed_power = [e for e in power if _matches_suffix(e, _BATTERY_POWER_SUFFIXES)]
+    balcony_power = None
     if len(narrowed_power) == 1:
-        out[CONF_BALCONY_POWER] = narrowed_power[0].entity_id
+        balcony_power = narrowed_power[0].entity_id
     elif len(power) == 1:
-        out[CONF_BALCONY_POWER] = power[0].entity_id
+        balcony_power = power[0].entity_id
+    if balcony_power is not None:
+        out[CONF_BALCONY_POWER] = balcony_power
+        # Solarbank ``battery_power`` is negative while discharging.
+        out[CONF_BALCONY_DISCHARGE_POSITIVE] = False
 
-    # Usage-mode select.
+    # Usage-mode select (+ the option value that means manual/custom).
     if (val := _pick(selects, _USAGE_MODE_SUFFIXES)) is not None:
         out[CONF_MODE_SELECT] = val
+        if (manual := _manual_option(hass, val)) is not None:
+            out[CONF_MODE_MANUAL_VALUE] = manual
 
     # AC-socket switch.
     if (val := _pick(switches, _AC_SOCKET_SUFFIXES)) is not None:

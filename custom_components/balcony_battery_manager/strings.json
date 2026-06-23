@@ -3,12 +3,12 @@
     "step": {
       "user": {
         "title": "Balcony Battery Manager – Input measurements",
-        "description": "Select the sensors of your existing roof PV / main-battery system. These are read only; the balcony battery is never measured via the same central meter. Grid and main-battery fields may be pre-filled automatically from the Energy Dashboard, and the balcony fields from the anker_solix integration — please review the suggestions.",
+        "description": "Select the sensors of your existing roof PV / main-battery system (e.g. E3DC). These are read only; the balcony battery is never measured via the same central meter. Grid and main-battery fields are pre-filled from the Energy Dashboard or, for E3DC, by pattern; the balcony fields and Anker controls from the anker_solix integration. The sign (export/discharge = positive) is suggested too — please review. Main-battery SOC is optional and only enables the grid-support feature.",
         "data": {
           "grid_power": "Grid / house power sensor",
           "grid_power_unit": "Grid power unit (auto / W / kW)",
           "grid_export_positive": "Positive value = export (feed-in to grid)",
-          "main_soc": "Main battery SOC (%)",
+          "main_soc": "Main battery SOC (%) — optional, only enables grid-support",
           "main_power": "Main battery charge/discharge power",
           "main_power_unit": "Main battery power unit (auto / W / kW)",
           "main_discharge_positive": "Main battery: discharge = positive",
@@ -60,7 +60,7 @@
           "grid_power": "Grid / house power sensor",
           "grid_power_unit": "Grid power unit (auto / W / kW)",
           "grid_export_positive": "Positive value = export (feed-in to grid)",
-          "main_soc": "Main battery SOC (%)",
+          "main_soc": "Main battery SOC (%) — optional, only enables grid-support",
           "main_power": "Main battery charge/discharge power",
           "main_power_unit": "Main battery power unit (auto / W / kW)",
           "main_discharge_positive": "Main battery: discharge = positive",

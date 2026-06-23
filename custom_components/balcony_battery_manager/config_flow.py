@@ -71,7 +71,11 @@ from .const import (
     DOMAIN,
     POWER_UNIT_OPTIONS,
 )
-from .prefill import suggested_from_anker, suggested_inputs_from_energy
+from .prefill import (
+    suggested_from_anker,
+    suggested_from_e3dc,
+    suggested_inputs_from_energy,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -137,7 +141,7 @@ _POWER_UNIT_SELECT = selector.SelectSelector(
 
 
 def _prefill_value(
-    d: dict[str, Any], suggestions: dict[str, str] | None, key: str
+    d: dict[str, Any], suggestions: dict[str, Any] | None, key: str
 ) -> Any:
     """Resolve the value used to pre-fill a field.
 
@@ -152,7 +156,7 @@ def _prefill_value(
 
 
 def _inputs_schema(
-    d: dict[str, Any], suggestions: dict[str, str] | None = None
+    d: dict[str, Any], suggestions: dict[str, Any] | None = None
 ) -> vol.Schema:
     # Sensor fields use suggested_value (not default) so a missing/empty
     # pre-fill renders as a blank selector instead of literal "None".
@@ -162,35 +166,38 @@ def _inputs_schema(
             return vol.Required(key, description={"suggested_value": val})
         return vol.Required(key)
 
+    def sensor_opt(key: str):
+        # Optional sensor: e.g. the main-battery SOC, which some roof systems
+        # (E3DC via KNX) simply do not expose. Without it grid-support is just
+        # skipped; the rest of the control loop runs normally.
+        val = _prefill_value(d, suggestions, key)
+        if val is not None:
+            return vol.Optional(key, description={"suggested_value": val})
+        return vol.Optional(key)
+
     def unit(key: str):
         return vol.Required(key, default=d.get(key, DEFAULT_POWER_UNIT))
+
+    def flag(key: str, fallback: bool):
+        # Sign booleans always render, so a stored value / best-effort vendor
+        # suggestion / fallback is carried straight in ``default``.
+        val = _prefill_value(d, suggestions, key)
+        return vol.Required(key, default=fallback if val is None else val)
 
     return vol.Schema(
         {
             sensor(CONF_GRID_POWER): _SENSOR,
             unit(CONF_GRID_POWER_UNIT): _POWER_UNIT_SELECT,
-            vol.Required(
-                CONF_GRID_EXPORT_POSITIVE,
-                default=d.get(CONF_GRID_EXPORT_POSITIVE, DEFAULT_GRID_EXPORT_POSITIVE),
-            ): _BOOL,
-            sensor(CONF_MAIN_SOC): _SENSOR,
+            flag(CONF_GRID_EXPORT_POSITIVE, DEFAULT_GRID_EXPORT_POSITIVE): _BOOL,
+            sensor_opt(CONF_MAIN_SOC): _SENSOR,
             sensor(CONF_MAIN_POWER): _SENSOR,
             unit(CONF_MAIN_POWER_UNIT): _POWER_UNIT_SELECT,
-            vol.Required(
-                CONF_MAIN_DISCHARGE_POSITIVE,
-                default=d.get(
-                    CONF_MAIN_DISCHARGE_POSITIVE, DEFAULT_MAIN_DISCHARGE_POSITIVE
-                ),
-            ): _BOOL,
+            flag(CONF_MAIN_DISCHARGE_POSITIVE, DEFAULT_MAIN_DISCHARGE_POSITIVE): _BOOL,
             sensor(CONF_BALCONY_SOC): _SENSOR,
             sensor(CONF_BALCONY_POWER): _SENSOR,
             unit(CONF_BALCONY_POWER_UNIT): _POWER_UNIT_SELECT,
-            vol.Required(
-                CONF_BALCONY_DISCHARGE_POSITIVE,
-                default=d.get(
-                    CONF_BALCONY_DISCHARGE_POSITIVE,
-                    DEFAULT_BALCONY_DISCHARGE_POSITIVE,
-                ),
+            flag(
+                CONF_BALCONY_DISCHARGE_POSITIVE, DEFAULT_BALCONY_DISCHARGE_POSITIVE
             ): _BOOL,
         }
     )
@@ -308,14 +315,24 @@ class BalconyBatteryConfigFlow(ConfigFlow, domain=DOMAIN):
         self._data: dict[str, Any] = {}
         # Best-effort pre-fill suggestions, computed once on the first form and
         # reused across steps. Only ever applied to still-empty fields.
-        self._suggestions: dict[str, str] | None = None
+        self._suggestions: dict[str, Any] | None = None
 
-    async def _async_prefill(self) -> dict[str, str]:
-        """Collect best-effort suggestions from the energy dashboard + anker."""
-        suggestions: dict[str, str] = {}
+    async def _async_prefill(self) -> dict[str, Any]:
+        """Collect best-effort suggestions for the initial form.
+
+        Sources are tried in order of confidence — energy dashboard, then the
+        E3DC roof-system pattern, then anker_solix — and only ever fill a field
+        that no earlier source already resolved (``setdefault``).
+        """
+        suggestions: dict[str, Any] = {}
         try:
-            suggestions.update(await suggested_inputs_from_energy(self.hass))
-            suggestions.update(await suggested_from_anker(self.hass))
+            for resolver in (
+                suggested_inputs_from_energy,
+                suggested_from_e3dc,
+                suggested_from_anker,
+            ):
+                for key, value in (await resolver(self.hass)).items():
+                    suggestions.setdefault(key, value)
         except Exception:  # noqa: BLE001 - pre-fill must never break the flow
             _LOGGER.debug("Config-flow pre-fill failed", exc_info=True)
         return suggestions
