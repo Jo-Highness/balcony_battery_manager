@@ -1,5 +1,4 @@
-"""The Balcony Battery Manager integration."""
-
+"""The Balcony Battery Manager integration (v2, Anker SOLIX Solarbank 4)."""
 from __future__ import annotations
 
 import logging
@@ -8,6 +7,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
 
 from .const import (
+    CONFIG_VERSION,
     DOMAIN,
     SERVICE_DISABLE,
     SERVICE_ENABLE,
@@ -26,6 +26,25 @@ def _coordinators(hass: HomeAssistant) -> list[BalconyBatteryCoordinator]:
         for c in hass.data.get(DOMAIN, {}).values()
         if isinstance(c, BalconyBatteryCoordinator)
     ]
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Reject old (v1 / Solarbank-3) entries — BREAKING CHANGE.
+
+    The v2 rewrite targets the Solarbank 4 with a different actor model and an
+    incompatible option set. There is no safe automatic migration, so we fail
+    the migration and ask the user to remove and re-add the integration.
+    """
+    if entry.version < CONFIG_VERSION:
+        _LOGGER.error(
+            "Balcony Battery Manager v2 is a BREAKING CHANGE (Solarbank 3 -> 4). "
+            "The old config entry (v%s) cannot be migrated automatically. Please "
+            "remove this integration and add it again to reconfigure it for the "
+            "Solarbank 4.",
+            entry.version,
+        )
+        return False
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

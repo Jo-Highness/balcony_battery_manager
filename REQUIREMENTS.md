@@ -1,13 +1,37 @@
 ---
 service: balcony_battery_manager
 typ: requirements
-version: 1.2
+version: 2.0
 status: current
-stand: 2026-06-23
+stand: 2026-07-27
 quellen: [README.md (ausführliche Spezifikation), custom_components/balcony_battery_manager, tests]
 ---
 
 # Anforderungen: Balcony Battery Manager (HA Custom Integration)
+
+> **BREAKING — v2.0.0 (2026-07-27):** Vollständiger Neuaufbau für **Anker SOLIX Solarbank 4 (E5000 Pro)**
+> über die **offizielle** Integration `anker_solix_official` im Modus **Third-Party Control**. Die alte
+> Solarbank-3-Steuerung (usage_mode/system_output_preset/ac_charge-Switch) ist ersetzt durch **ein Aktor-Paar**:
+> `select … grid_flow` (charge|discharge) + `number … target_grid_power` (0–3000 W). Kein automatisches Config-
+> Migrations-Upgrade (async_migrate_entry → False); Nutzer muss die Integration entfernen und neu anlegen.
+>
+> **Regel-Kennwert:** korrigierter Hauptakku-Bezug `D = P_batt_draw + P_anker_out` (unabhängig vom eigenen
+> Einspeise-Sollwert; alle Entlade-Schwellen beziehen sich auf D).
+> **Entlade-Stufenautomat:** Stufen 0/350/800 W; Schwellen 800/1600 W; Verweilzeit 10 min DURCHGEHEND je
+> Übergang; Hysterese 100 W; hoch darf springen, runter eine Stufe je Verweilzeit.
+> **PV-Überschussladen (prädiktiv):** Rest-PV-Energie bis Sonnenuntergang (Live-Heuristik, Nachmittagskappung
+> 1/3 der Nennleistung ab 13:00) < Energiebedarf (Ziel-SoC/Kapazität) → Defizit → Laden freigeben. Ladeleistung
+> = clamp(prev + (Live-Export − Reserve), 0, max_charge); strikt nur aus Überschuss (Export ≥ −Toleranz),
+> geschlossener Regelkreis, nie aus Netz/Hauptakku. **Priorität:** Entladen vor Laden; genau ein Modus/Zyklus.
+> **Alle Parameter/Entitäten** per config_flow + options_flow (EntitySelector) konfigurierbar; Fail-safe
+> (Pflichtsensor unavailable → Einspeisung UND Laden 0). Defaults: siehe README. Signale/Entitäten (mein Setup):
+> P_batt_draw=sensor.e3dc_batterypowerconsumption(−=Entladung), P_anker_out=…solarbank_4…_ac_output,
+> P_grid=sensor.e3dc_gridpowerconsumption(−=Export), SoC=…_soc, PV=…_solar_power, Kapazität≈15.5 kWh
+> (aus …_battery_capacity), sun.sun. Pipeline: Projekt c783453b, ADR 79288911 (ersetzt 344c43e0/14229da2).
+
+---
+
+## HISTORIE v1 (Solarbank 3, abgelöst)
 
 > Code-unabhängige Soll-Beschreibung für eine Neuentwicklung von Grund auf (WAS/WARUM).
 
