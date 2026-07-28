@@ -70,16 +70,28 @@ def test_discharge_high_demand_jumps_to_stage2():
     assert w == 800.0 and st.step_index == 2
 
 
-def test_discharge_timer_resets_when_candidate_changes():
-    # 5 min at >1600 (candidate 2), then demand drops to 1000 (candidate 1)
+def test_discharge_above_800_continuous_commits_stage1_even_if_crossing_1600():
+    # D stays continuously > 800 (dipping from 1700 to 1000) -> after 10 min the
+    # "D>800 for 10 min" rule commits stage 1, independent of the 1600 crossing.
     st, w = _run_discharge([(1700, 300), (1000, 300)])
-    assert w == 0.0  # neither candidate held 10 min continuously
-    # then hold 1000 for another 10 min -> stage 1
-    st2 = logic.DischargeState()
-    for d, dt in [(1700, 300), (1000, 300), (1000, 300)]:
-        w = logic.update_discharge(st2, d, dt, CFG["discharge_steps"],
-                                   CFG["discharge_thresholds"], CFG["hysteresis"], CFG["dwell_s"])
     assert w == 350.0
+    # 1600 was NOT held continuously (only 300 s), so it is not stage 2.
+    assert st.step_index == 1
+
+
+def test_discharge_1600_must_hold_continuously_for_stage2():
+    # oscillating around 1600 never keeps the 1600 timer full -> stays at stage 1,
+    # not stage 2 (but does reach stage 1 via the 800 rule).
+    st = logic.DischargeState()
+    for d, dt in [(1700, 200), (1500, 200)] * 3:  # 1200 s total, all > 800
+        w = logic.update_discharge(st, d, dt, CFG["discharge_steps"],
+                                   CFG["discharge_thresholds"], CFG["hysteresis"], CFG["dwell_s"])
+    assert w == 350.0 and st.step_index == 1
+    # now hold > 1600 continuously for 10 min -> stage 2
+    for _ in range(3):
+        w = logic.update_discharge(st, 1700, 300, CFG["discharge_steps"],
+                                   CFG["discharge_thresholds"], CFG["hysteresis"], CFG["dwell_s"])
+    assert w == 800.0
 
 
 def test_discharge_downshift_one_step_with_hysteresis():

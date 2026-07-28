@@ -35,36 +35,17 @@ def corrected_demand(p_batt_draw: float, p_anker_out: float) -> float:
 
 @dataclass
 class DischargeState:
-    """Persistent state of the discharge staircase controller."""
+    """Persistent state of the discharge staircase controller.
 
-    step_index: int = 0          # index into `steps` (0 = off)
-    candidate: int | None = None  # index we are currently dwelling towards
-    elapsed_s: float = 0.0        # seconds the candidate has held continuously
-
-
-def _target_index(demand: float, cur: int, thresholds: list[float],
-                  hysteresis: float) -> int:
-    """Instantaneous target step index from demand, with hysteresis.
-
-    Upshifts may jump multiple steps (e.g. D above the top threshold goes
-    straight to the highest step). Downshifts move at most one step at a time
-    and only once demand falls below (threshold - hysteresis).
-
-    thresholds ascending, len == number of steps - 1. thresholds[i] is the
-    demand above which step i+1 becomes active.
+    Each threshold gets an independent "continuously above" timer (up_timers)
+    and an independent "continuously below (threshold - hysteresis)" timer
+    (down_timers). This makes the two rules independent, e.g. "D>800 for 10 min
+    -> at least stage 1" still fires even if D briefly crossed 1600 in between.
     """
-    # Highest step whose ON threshold is exceeded (upshift may jump).
-    up = 0
-    for i, th in enumerate(thresholds):
-        if demand > th:
-            up = i + 1
-    if up > cur:
-        return up
-    # Downshift: leave the current step only below (threshold - hysteresis),
-    # and only one step at a time.
-    if cur > 0 and demand < thresholds[cur - 1] - hysteresis:
-        return cur - 1
-    return cur
+
+    step_index: int = 0                       # index into `steps` (0 = off)
+    up_timers: list[float] = field(default_factory=list)    # per threshold
+    down_timers: list[float] = field(default_factory=list)  # per threshold
 
 
 def update_discharge(state: DischargeState, demand: float, dt_s: float,
@@ -72,25 +53,33 @@ def update_discharge(state: DischargeState, demand: float, dt_s: float,
                      hysteresis: float, dwell_s: float) -> int:
     """Advance the staircase controller by dt_s seconds; return step power (W).
 
-    A step change is only committed after the candidate target has held
-    continuously for `dwell_s` seconds (timer resets whenever the candidate
-    changes). This gives the "condition must hold for >= 10 min" behaviour with
-    a per-transition timer.
+    thresholds ascending, len == number of steps - 1; thresholds[i] is the
+    demand above which step i+1 qualifies. For every threshold we track how
+    long demand has held continuously ABOVE it (up) and continuously BELOW
+    (threshold - hysteresis) (down). An upshift commits to the highest step
+    whose up-timer reached the dwell (may jump multiple steps); a downshift
+    moves one step once the current step's lower-threshold down-timer reached
+    the dwell. Between the band nothing changes (stable, no flapping).
     """
-    target = _target_index(demand, state.step_index, thresholds, hysteresis)
-    if target == state.step_index:
-        state.candidate = None
-        state.elapsed_s = 0.0
-    else:
-        if state.candidate == target:
-            state.elapsed_s += dt_s
-        else:
-            state.candidate = target
-            state.elapsed_s = dt_s
-        if state.elapsed_s >= dwell_s:
-            state.step_index = target
-            state.candidate = None
-            state.elapsed_s = 0.0
+    n = len(thresholds)
+    if len(state.up_timers) != n:
+        state.up_timers = [0.0] * n
+        state.down_timers = [0.0] * n
+    for i, th in enumerate(thresholds):
+        state.up_timers[i] = state.up_timers[i] + dt_s if demand > th else 0.0
+        state.down_timers[i] = (state.down_timers[i] + dt_s
+                                if demand < th - hysteresis else 0.0)
+
+    # Upshift: highest threshold whose "above" timer reached the dwell.
+    desired_up = 0
+    for i in range(n):
+        if state.up_timers[i] >= dwell_s:
+            desired_up = i + 1
+    if desired_up > state.step_index:
+        state.step_index = desired_up
+    elif state.step_index > 0 and state.down_timers[state.step_index - 1] >= dwell_s:
+        # Downshift one step once demand has stayed below (threshold - hyst).
+        state.step_index -= 1
     return steps[state.step_index]
 
 
