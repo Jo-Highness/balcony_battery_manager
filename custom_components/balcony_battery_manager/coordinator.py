@@ -121,12 +121,13 @@ class BalconyBatteryCoordinator(DataUpdateCoordinator[dict]):
                               C.DEFAULT_GRID_EXPORT_POSITIVE, True)
         soc = self._num(C.CONF_SOC_ANKER)
         pv = self._num(C.CONF_P_ANKER_PV) or 0.0
+        main_soc = self._num(C.CONF_MAIN_SOC)  # optional; enables grid support
         sunset = self._sunset(now)
 
         dec = logic.decide(
             self._state, now=now, sunset=sunset,
             p_batt_draw=p_batt, p_anker_out=p_out, grid_export=surplus,
-            soc=soc, p_anker_pv=pv, dt_s=dt_s, cfg=self._cfg,
+            soc=soc, p_anker_pv=pv, dt_s=dt_s, cfg=self._cfg, main_soc=main_soc,
         )
         await self._apply(dec)
         return self._as_data(dec)

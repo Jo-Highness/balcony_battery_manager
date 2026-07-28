@@ -43,6 +43,15 @@ CONF_PV_NOMINAL_W = "pv_nominal_w"               # Solarbank PV nominal (W)
 CONF_AFTERNOON_HOUR = "afternoon_hour"           # afternoon cap boundary (hour)
 CONF_AFTERNOON_FACTOR = "afternoon_factor"       # afternoon cap = nominal * factor
 
+# --- Grid support (main battery empty -> cover house except a margin) ---
+CONF_MAIN_SOC = "main_soc"                       # main-battery SoC entity (%)
+CONF_GRID_SUPPORT_ENABLED = "grid_support_enabled"
+CONF_MAIN_EMPTY_SOC = "main_empty_soc"           # main battery counts empty at/below (%)
+CONF_MAIN_EMPTY_SOC_HYST = "main_empty_soc_hyst"  # SoC hysteresis to release (%)
+CONF_GRID_SUPPORT_MARGIN = "grid_support_margin"  # residual grid import to keep (W)
+CONF_GRID_SUPPORT_MAX = "grid_support_max"        # max feed-in in grid support (W)
+CONF_MIN_DISCHARGE_SOC = "min_discharge_soc"      # Solarbank must be above this (%)
+
 # --- General ---
 CONF_INTERVAL = "control_interval"               # coordinator update interval (s)
 CONF_DEADBAND = "deadband"                        # min setpoint change to write (W)
@@ -69,6 +78,13 @@ DEFAULT_CAPACITY_KWH = 15.5
 DEFAULT_PV_NOMINAL_W = 2000.0
 DEFAULT_AFTERNOON_HOUR = 13
 DEFAULT_AFTERNOON_FACTOR = 1.0 / 3.0
+
+DEFAULT_GRID_SUPPORT_ENABLED = True
+DEFAULT_MAIN_EMPTY_SOC = 10.0
+DEFAULT_MAIN_EMPTY_SOC_HYST = 3.0
+DEFAULT_GRID_SUPPORT_MARGIN = 100.0
+DEFAULT_GRID_SUPPORT_MAX = 2000.0
+DEFAULT_MIN_DISCHARGE_SOC = 10.0
 
 DEFAULT_INTERVAL = 30
 DEFAULT_DEADBAND = 25.0
@@ -109,4 +125,10 @@ def build_cfg(options: dict) -> dict:
         "pv_nominal_w": g(CONF_PV_NOMINAL_W, DEFAULT_PV_NOMINAL_W),
         "afternoon_hour": int(g(CONF_AFTERNOON_HOUR, DEFAULT_AFTERNOON_HOUR)),
         "afternoon_factor": g(CONF_AFTERNOON_FACTOR, DEFAULT_AFTERNOON_FACTOR),
+        "grid_support_enabled": g(CONF_GRID_SUPPORT_ENABLED, DEFAULT_GRID_SUPPORT_ENABLED),
+        "main_empty_soc": g(CONF_MAIN_EMPTY_SOC, DEFAULT_MAIN_EMPTY_SOC),
+        "main_empty_soc_hyst": g(CONF_MAIN_EMPTY_SOC_HYST, DEFAULT_MAIN_EMPTY_SOC_HYST),
+        "grid_support_margin": g(CONF_GRID_SUPPORT_MARGIN, DEFAULT_GRID_SUPPORT_MARGIN),
+        "grid_support_max": g(CONF_GRID_SUPPORT_MAX, DEFAULT_GRID_SUPPORT_MAX),
+        "min_discharge_soc": g(CONF_MIN_DISCHARGE_SOC, DEFAULT_MIN_DISCHARGE_SOC),
     }

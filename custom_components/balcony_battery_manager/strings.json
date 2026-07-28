@@ -32,7 +32,14 @@
           "afternoon_hour": "Afternoon cap boundary (hour of day)",
           "afternoon_factor": "Afternoon cap factor (× nominal)",
           "control_interval": "Coordinator update interval (s)",
-          "deadband": "Minimum setpoint change to write (W)"
+          "deadband": "Minimum setpoint change to write (W)",
+          "grid_support_enabled": "Grid support when the main battery is empty",
+          "main_soc": "Main-battery state of charge (sensor, %)",
+          "main_empty_soc": "Main battery counts as empty at/below (%)",
+          "main_empty_soc_hyst": "SoC hysteresis to release grid support (%)",
+          "grid_support_margin": "Residual grid import to keep while supporting (W)",
+          "grid_support_max": "Maximum feed-in during grid support (W)",
+          "min_discharge_soc": "Solarbank must stay above this SoC to discharge (%)"
         }
       }
     },
@@ -72,25 +79,51 @@
           "afternoon_hour": "Afternoon cap boundary (hour of day)",
           "afternoon_factor": "Afternoon cap factor (× nominal)",
           "control_interval": "Coordinator update interval (s)",
-          "deadband": "Minimum setpoint change to write (W)"
+          "deadband": "Minimum setpoint change to write (W)",
+          "grid_support_enabled": "Grid support when the main battery is empty",
+          "main_soc": "Main-battery state of charge (sensor, %)",
+          "main_empty_soc": "Main battery counts as empty at/below (%)",
+          "main_empty_soc_hyst": "SoC hysteresis to release grid support (%)",
+          "grid_support_margin": "Residual grid import to keep while supporting (W)",
+          "grid_support_max": "Maximum feed-in during grid support (W)",
+          "min_discharge_soc": "Solarbank must stay above this SoC to discharge (%)"
         }
       }
     }
   },
   "entity": {
     "sensor": {
-      "mode": {"name": "Mode"},
-      "target_power": {"name": "Target power"},
-      "corrected_demand": {"name": "Corrected demand"},
-      "surplus": {"name": "Surplus"}
+      "mode": {
+        "name": "Mode"
+      },
+      "target_power": {
+        "name": "Target power"
+      },
+      "corrected_demand": {
+        "name": "Corrected demand"
+      },
+      "surplus": {
+        "name": "Surplus"
+      }
     },
     "switch": {
-      "enabled": {"name": "Enabled"}
+      "enabled": {
+        "name": "Enabled"
+      }
     }
   },
   "services": {
-    "enable": {"name": "Enable", "description": "Enable the control loop."},
-    "disable": {"name": "Disable", "description": "Disable the control loop and set feed-in and charging to 0."},
-    "recalculate_now": {"name": "Recalculate now", "description": "Trigger an immediate control cycle."}
+    "enable": {
+      "name": "Enable",
+      "description": "Enable the control loop."
+    },
+    "disable": {
+      "name": "Disable",
+      "description": "Disable the control loop and set feed-in and charging to 0."
+    },
+    "recalculate_now": {
+      "name": "Recalculate now",
+      "description": "Trigger an immediate control cycle."
+    }
   }
 }

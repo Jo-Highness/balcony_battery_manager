@@ -32,7 +32,14 @@
           "afternoon_hour": "Nachmittagsgrenze (Stunde)",
           "afternoon_factor": "Nachmittags-Kappungsfaktor (× Nennleistung)",
           "control_interval": "Koordinator-Intervall (s)",
-          "deadband": "Minimale Sollwert-Änderung zum Schreiben (W)"
+          "deadband": "Minimale Sollwert-Änderung zum Schreiben (W)",
+          "grid_support_enabled": "Netz-Unterstützung bei leerem Hauptakku",
+          "main_soc": "Hauptakku-Ladezustand (Sensor, %)",
+          "main_empty_soc": "Hauptakku gilt als leer bei/unter (%)",
+          "main_empty_soc_hyst": "SoC-Hysterese zum Beenden der Netz-Unterstützung (%)",
+          "grid_support_margin": "Zu haltender Rest-Netzbezug während der Unterstützung (W)",
+          "grid_support_max": "Maximale Einspeisung bei Netz-Unterstützung (W)",
+          "min_discharge_soc": "Solarbank muss über diesem SoC bleiben, um zu entladen (%)"
         }
       }
     },
@@ -72,25 +79,51 @@
           "afternoon_hour": "Nachmittagsgrenze (Stunde)",
           "afternoon_factor": "Nachmittags-Kappungsfaktor (× Nennleistung)",
           "control_interval": "Koordinator-Intervall (s)",
-          "deadband": "Minimale Sollwert-Änderung zum Schreiben (W)"
+          "deadband": "Minimale Sollwert-Änderung zum Schreiben (W)",
+          "grid_support_enabled": "Netz-Unterstützung bei leerem Hauptakku",
+          "main_soc": "Hauptakku-Ladezustand (Sensor, %)",
+          "main_empty_soc": "Hauptakku gilt als leer bei/unter (%)",
+          "main_empty_soc_hyst": "SoC-Hysterese zum Beenden der Netz-Unterstützung (%)",
+          "grid_support_margin": "Zu haltender Rest-Netzbezug während der Unterstützung (W)",
+          "grid_support_max": "Maximale Einspeisung bei Netz-Unterstützung (W)",
+          "min_discharge_soc": "Solarbank muss über diesem SoC bleiben, um zu entladen (%)"
         }
       }
     }
   },
   "entity": {
     "sensor": {
-      "mode": {"name": "Modus"},
-      "target_power": {"name": "Sollwert Leistung"},
-      "corrected_demand": {"name": "Korrigierter Bedarf"},
-      "surplus": {"name": "Überschuss"}
+      "mode": {
+        "name": "Modus"
+      },
+      "target_power": {
+        "name": "Sollwert Leistung"
+      },
+      "corrected_demand": {
+        "name": "Korrigierter Bedarf"
+      },
+      "surplus": {
+        "name": "Überschuss"
+      }
     },
     "switch": {
-      "enabled": {"name": "Aktiviert"}
+      "enabled": {
+        "name": "Aktiviert"
+      }
     }
   },
   "services": {
-    "enable": {"name": "Aktivieren", "description": "Regelung aktivieren."},
-    "disable": {"name": "Deaktivieren", "description": "Regelung deaktivieren und Einspeisung sowie Laden auf 0 setzen."},
-    "recalculate_now": {"name": "Jetzt neu berechnen", "description": "Sofort einen Regelzyklus auslösen."}
+    "enable": {
+      "name": "Aktivieren",
+      "description": "Regelung aktivieren."
+    },
+    "disable": {
+      "name": "Deaktivieren",
+      "description": "Regelung deaktivieren und Einspeisung sowie Laden auf 0 setzen."
+    },
+    "recalculate_now": {
+      "name": "Jetzt neu berechnen",
+      "description": "Sofort einen Regelzyklus auslösen."
+    }
   }
 }

@@ -28,6 +28,12 @@ CFG = {
     "pv_nominal_w": 2000.0,
     "afternoon_hour": 13,
     "afternoon_factor": 1.0 / 3.0,
+    "grid_support_enabled": True,
+    "main_empty_soc": 10.0,
+    "main_empty_soc_hyst": 3.0,
+    "grid_support_margin": 100.0,
+    "grid_support_max": 2000.0,
+    "min_discharge_soc": 10.0,
 }
 
 
@@ -184,6 +190,69 @@ def test_decide_charge_ramps_down_when_surplus_shrinks():
     d2 = logic.decide(st, now=now, sunset=sunset, p_batt_draw=0, p_anker_out=0,
                       grid_export=0, soc=50, p_anker_pv=50, dt_s=30, cfg=CFG)
     assert d2.target_power < d1.target_power
+
+
+# ---------------- grid support (main battery empty) ----------------
+
+def test_grid_support_activation_hysteresis():
+    # off until <= empty (10), then stays on until > empty + hyst (13)
+    a = logic.grid_support_active(False, main_soc=11, soc_anker=50, empty_soc=10,
+                                  soc_hyst=3, min_discharge_soc=10, enabled=True)
+    assert a is False
+    a = logic.grid_support_active(False, main_soc=9, soc_anker=50, empty_soc=10,
+                                  soc_hyst=3, min_discharge_soc=10, enabled=True)
+    assert a is True
+    a = logic.grid_support_active(True, main_soc=12, soc_anker=50, empty_soc=10,
+                                  soc_hyst=3, min_discharge_soc=10, enabled=True)
+    assert a is True   # still within hysteresis band
+    a = logic.grid_support_active(True, main_soc=14, soc_anker=50, empty_soc=10,
+                                  soc_hyst=3, min_discharge_soc=10, enabled=True)
+    assert a is False
+
+
+def test_grid_support_needs_solarbank_charge():
+    a = logic.grid_support_active(False, main_soc=5, soc_anker=8, empty_soc=10,
+                                  soc_hyst=3, min_discharge_soc=10, enabled=True)
+    assert a is False  # Solarbank too empty
+
+
+def test_grid_support_disabled_or_no_main_soc():
+    assert logic.grid_support_active(False, 5, 50, empty_soc=10, soc_hyst=3,
+                                     min_discharge_soc=10, enabled=False) is False
+    assert logic.grid_support_active(False, None, 50, empty_soc=10, soc_hyst=3,
+                                     min_discharge_soc=10, enabled=True) is False
+
+
+def test_grid_support_power_keeps_import_at_margin():
+    # importing 500 (surplus -500), margin 100 -> raise feed by 400
+    assert logic.grid_support_power(0, -500, margin=100, max_feed=2000) == 400
+    # now exporting a bit -> lower feed
+    assert logic.grid_support_power(400, 50, margin=100, max_feed=2000) == 250
+    assert logic.grid_support_power(1900, -500, margin=100, max_feed=2000) == 2000  # capped
+
+
+def test_decide_grid_support_when_main_empty():
+    st = _state()
+    now = datetime(2026, 7, 1, 20, 0, tzinfo=timezone.utc)
+    sunset = now - timedelta(hours=1)  # after sunset
+    # main empty (8%), house pulling from grid (import 600 -> surplus -600)
+    dec = logic.decide(st, now=now, sunset=sunset, p_batt_draw=0, p_anker_out=0,
+                       grid_export=-600, soc=80, p_anker_pv=0, dt_s=30, cfg=CFG,
+                       main_soc=8)
+    assert dec.mode == logic.MODE_GRID_SUPPORT and dec.grid_flow == "discharge"
+    assert dec.target_power == 500  # 600 import - 100 margin
+
+
+def test_decide_grid_support_priority_over_staircase():
+    st = _state()
+    st.discharge.step_index = 2
+    now = datetime(2026, 7, 1, 20, 0, tzinfo=timezone.utc)
+    sunset = now - timedelta(hours=1)
+    dec = logic.decide(st, now=now, sunset=sunset, p_batt_draw=1700, p_anker_out=0,
+                       grid_export=-400, soc=80, p_anker_pv=0, dt_s=30, cfg=CFG,
+                       main_soc=5)
+    assert dec.mode == logic.MODE_GRID_SUPPORT
+    assert st.discharge.step_index == 0  # staircase reset while grid support active
 
 
 def test_failsafe_zero():

@@ -68,11 +68,28 @@ bounded to `[0, max_charge]` (default 2500 W). Because charging itself lowers th
 export in real time, the loop continually re-tunes; if the surplus vanishes,
 charging ramps down to 0. **It never charges from the grid or the main battery.**
 
+### Grid support — main battery empty
+When the **main house battery is empty** (its SoC at/below a threshold, default
+10 %) and the Solarbank still has charge, the Solarbank steps in to cover the
+house: a closed loop on the live grid meter keeps the residual **grid import at
+a small margin** (default 100 W). In other words the Solarbank feeds *the house
+demand minus ~100 W*, so almost everything comes from the Solarbank and only
+~100 W is drawn from the grid. This mirrors the charge loop (which keeps the
+*export* at the reserve) and automatically accounts for any PV or remaining main
+contribution. Requires a **main-battery SoC** entity to be configured; without
+it, grid support stays off. Uses a SoC hysteresis (default 3 %) to release.
+
 ### Coordination & fail-safe
-One coordinator decides a single mode per cycle — **discharge support takes
-priority** over charging when `D` is high. Every setpoint is clamped to the
-device limits. If any required sensor becomes unavailable, both feed-in **and**
-charging are set to **0** (fail-safe).
+One coordinator decides a single mode per cycle. Priority: **grid support**
+(main battery empty) → **discharge support** (high `D`) → **charging** → idle.
+Every setpoint is clamped to the device limits. If any required sensor becomes
+unavailable, both feed-in **and** charging are set to **0** (fail-safe).
+
+> **Sign conventions:** each signed input has a "positive =" toggle. For an
+> **E3DC/KNX** meter (negative = discharge into house / export) the auto-prefill
+> sets both `batt_draw_positive` and `grid_export_positive` to **off** — leave
+> them off, otherwise the corrected demand `D` comes out negated and nothing is
+> fed in.
 
 ---
 

@@ -39,8 +39,20 @@ def suggest(hass: HomeAssistant) -> dict:
     s[C.CONF_TARGET_POWER_NUMBER] = _find(hass, sb, "target_grid_power", domain="number")
 
     # --- House side (E3DC via KNX) ---
-    s[C.CONF_P_BATT_DRAW] = _find(hass, "batterypowerconsumption", domain="sensor")
-    s[C.CONF_P_GRID] = _find(hass, "gridpowerconsumption", domain="sensor")
+    batt = _find(hass, "batterypowerconsumption", domain="sensor")
+    grid = _find(hass, "gridpowerconsumption", domain="sensor")
+    s[C.CONF_P_BATT_DRAW] = batt
+    s[C.CONF_P_GRID] = grid
+    # E3DC uses a NEGATIVE convention (negative = discharge into house / export),
+    # so the "positive =" sign flags must default to False for these sensors.
+    if batt:
+        s[C.CONF_BATT_DRAW_POSITIVE] = False
+    if grid:
+        s[C.CONF_GRID_EXPORT_POSITIVE] = False
+
+    # --- Main-battery SoC (for grid support when the main battery is empty) ---
+    s[C.CONF_MAIN_SOC] = (_find(hass, "powerbatterysoc", domain="sensor")
+                          or _find(hass, "hauskraftwerk", "soc", domain="sensor"))
 
     # --- Sun ---
     s[C.CONF_SUN] = "sun.sun" if hass.states.get("sun.sun") else None

@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 MODE_IDLE = "idle"
 MODE_DISCHARGE = "discharge"
 MODE_CHARGE = "charge"
+MODE_GRID_SUPPORT = "grid_support"
 MODE_FAILSAFE = "failsafe"
 
 
@@ -147,6 +148,39 @@ def charge_power(prev_charge: float, grid_export: float, *, reserve: float,
     return clamp(prev_charge + (grid_export - reserve), 0.0, max_charge)
 
 
+def grid_support_power(prev_feed: float, grid_export: float, *, margin: float,
+                       max_feed: float) -> float:
+    """Closed-loop discharge power that keeps the grid *import* at ~margin.
+
+    Mirror of charge_power: grid import = -grid_export (grid_export positive =
+    export). We nudge the feed so the residual grid import settles at `margin`
+    (default 100 W) — i.e. the Solarbank supplies the house except that margin.
+    This automatically accounts for any PV/main-battery contribution and is
+    bounded to [0, max_feed]. Used when the main battery is empty.
+    """
+    grid_import = -grid_export
+    return clamp(prev_feed + (grid_import - margin), 0.0, max_feed)
+
+
+def grid_support_active(prev_active: bool, main_soc: float | None, soc_anker: float | None,
+                        *, empty_soc: float, soc_hyst: float, min_discharge_soc: float,
+                        enabled: bool) -> bool:
+    """Decide whether the main-battery-empty grid support should run.
+
+    Turns ON when the main battery SoC drops to `empty_soc`, OFF again only
+    above `empty_soc + soc_hyst` (SoC hysteresis against flapping). Requires the
+    Solarbank to still have charge (soc_anker > min_discharge_soc). Disabled if
+    the feature is off or no main SoC is available.
+    """
+    if not enabled or main_soc is None:
+        return False
+    if soc_anker is not None and soc_anker <= min_discharge_soc:
+        return False
+    if prev_active:
+        return main_soc <= empty_soc + soc_hyst
+    return main_soc <= empty_soc
+
+
 @dataclass
 class Decision:
     """Result of one coordination cycle."""
@@ -168,18 +202,42 @@ class ControllerState:
 
     discharge: DischargeState = field(default_factory=DischargeState)
     last_charge_w: float = 0.0
+    grid_support_on: bool = False
+    last_support_w: float = 0.0
 
 
 def decide(state: ControllerState, *, now: datetime, sunset: datetime,
            p_batt_draw: float, p_anker_out: float, grid_export: float,
-           soc: float, p_anker_pv: float, dt_s: float, cfg: dict) -> Decision:
+           soc: float, p_anker_pv: float, dt_s: float, cfg: dict,
+           main_soc: float | None = None) -> Decision:
     """Single coordination cycle: pick exactly one mode and its setpoint.
 
-    Priority: discharge support (high demand) before charging. All setpoints
-    are clamped to the device limits by the caller. `cfg` carries the tunable
-    parameters (see const.DEFAULTS).
+    Priority: grid support (main battery empty) > discharge staircase (high
+    demand) > charging > idle. All setpoints are clamped to the device limits
+    by the caller. `cfg` carries the tunable parameters (see const.DEFAULTS).
     """
     demand = corrected_demand(p_batt_draw, p_anker_out)
+
+    # --- Grid support: main battery empty -> cover the house except `margin` ---
+    state.grid_support_on = grid_support_active(
+        state.grid_support_on, main_soc, soc,
+        empty_soc=cfg["main_empty_soc"], soc_hyst=cfg["main_empty_soc_hyst"],
+        min_discharge_soc=cfg["min_discharge_soc"], enabled=cfg["grid_support_enabled"])
+    if state.grid_support_on:
+        # Grid support overrides the staircase; keep its timer clean.
+        state.discharge = DischargeState()
+        state.last_charge_w = 0.0
+        feed = grid_support_power(state.last_support_w, grid_export,
+                                  margin=cfg["grid_support_margin"],
+                                  max_feed=cfg["grid_support_max"])
+        state.last_support_w = feed
+        if feed > 0:
+            return Decision(mode=MODE_GRID_SUPPORT, grid_flow="discharge",
+                            target_power=feed, demand=demand, surplus=grid_export,
+                            reason=f"Hauptakku leer (SoC {main_soc}%), Einspeisung {feed:.0f}W")
+        return Decision(mode=MODE_IDLE, grid_flow="", target_power=0.0, demand=demand,
+                        surplus=grid_export, reason="Hauptakku leer, kein Netzbezug")
+    state.last_support_w = 0.0
 
     # --- Discharge staircase (evaluated against corrected demand D) ---
     step_w = update_discharge(
