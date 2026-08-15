@@ -235,24 +235,54 @@ def test_grid_support_disabled_or_no_main_soc():
                                      min_discharge_soc=10, enabled=True) is False
 
 
-def test_grid_support_power_keeps_import_at_margin():
-    # importing 500 (surplus -500), margin 100 -> raise feed by 400
-    assert logic.grid_support_power(0, -500, margin=100, max_feed=2000) == 400
-    # now exporting a bit -> lower feed
-    assert logic.grid_support_power(400, 50, margin=100, max_feed=2000) == 250
-    assert logic.grid_support_power(1900, -500, margin=100, max_feed=2000) == 2000  # capped
+def test_grid_support_power_relieves_main_battery():
+    # main battery discharging 500W, margin 100 -> raise feed by 400
+    assert logic.grid_support_power(0, 500, margin=100, max_feed=2000) == 400
+    # main draw fell below margin (50W) -> lower the feed
+    assert logic.grid_support_power(400, 50, margin=100, max_feed=2000) == 350
+    assert logic.grid_support_power(1900, 500, margin=100, max_feed=2000) == 2000  # capped
 
 
 def test_decide_grid_support_when_main_empty():
     st = _state()
     now = datetime(2026, 7, 1, 20, 0, tzinfo=timezone.utc)
     sunset = now - timedelta(hours=1)  # after sunset
-    # main empty (8%), house pulling from grid (import 600 -> surplus -600)
-    dec = logic.decide(st, now=now, sunset=sunset, p_batt_draw=0, p_anker_out=0,
-                       grid_export=-600, soc=80, p_anker_pv=0, dt_s=30, cfg=CFG,
+    # main empty (8%) and still discharging 600W into the house
+    dec = logic.decide(st, now=now, sunset=sunset, p_batt_draw=600, p_anker_out=0,
+                       grid_export=0, soc=80, p_anker_pv=0, dt_s=30, cfg=CFG,
                        main_soc=8)
     assert dec.mode == logic.MODE_GRID_SUPPORT and dec.grid_flow == "discharge"
-    assert dec.target_power == 500  # 600 import - 100 margin
+    assert dec.target_power == 500  # 600 main-battery draw - 100 margin
+
+
+def test_grid_support_relieves_even_when_grid_import_zero():
+    """Regression for the live outage: E3DC at 1% keeps discharging ~1164W, so
+    grid import is ~0. The old loop targeted grid import and fed 0W, draining the
+    main battery flat while the full Solarbank sat idle. The fixed loop closes on
+    the main-battery draw and feeds to relieve it."""
+    st = _state()
+    now = datetime(2026, 7, 1, 22, 0, tzinfo=timezone.utc)
+    sunset = now - timedelta(hours=1)
+    dec = logic.decide(st, now=now, sunset=sunset, p_batt_draw=1164, p_anker_out=0,
+                       grid_export=-4, soc=85, p_anker_pv=0, dt_s=30, cfg=CFG,
+                       main_soc=1)
+    assert dec.mode == logic.MODE_GRID_SUPPORT and dec.grid_flow == "discharge"
+    assert dec.target_power == 1068  # (1164 draw + 4 import) - 100 margin (not 0 as before)
+
+
+def test_grid_support_covers_grid_import_when_main_current_limited():
+    """When the near-empty main battery is current-limited it barely discharges
+    (52W) and the rest of the house load is imported from the grid (440W). The
+    Solarbank must cover that grid import too, not only the tiny battery draw."""
+    st = _state()
+    now = datetime(2026, 7, 1, 22, 0, tzinfo=timezone.utc)
+    sunset = now - timedelta(hours=1)
+    # grid importing 440 -> grid_export = -440; main battery draw 52
+    dec = logic.decide(st, now=now, sunset=sunset, p_batt_draw=52, p_anker_out=0,
+                       grid_export=-440, soc=85, p_anker_pv=0, dt_s=30, cfg=CFG,
+                       main_soc=1)
+    assert dec.mode == logic.MODE_GRID_SUPPORT and dec.grid_flow == "discharge"
+    assert dec.target_power == 392  # (52 draw + 440 import) - 100 margin
 
 
 def test_decide_grid_support_priority_over_staircase():

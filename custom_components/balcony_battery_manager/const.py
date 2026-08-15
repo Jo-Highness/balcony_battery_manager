@@ -83,7 +83,10 @@ DEFAULT_GRID_SUPPORT_ENABLED = True
 DEFAULT_MAIN_EMPTY_SOC = 10.0
 DEFAULT_MAIN_EMPTY_SOC_HYST = 3.0
 DEFAULT_GRID_SUPPORT_MARGIN = 100.0
-DEFAULT_GRID_SUPPORT_MAX = 2000.0
+# Cap at the Solarbank's real max discharge (target_grid_power tops out at 800 W).
+# A higher value only lets the closed-loop integrator wind up while the device
+# setpoint is clamped, so it reacts sluggishly when the house load drops again.
+DEFAULT_GRID_SUPPORT_MAX = 800.0
 DEFAULT_MIN_DISCHARGE_SOC = 10.0
 
 DEFAULT_INTERVAL = 30

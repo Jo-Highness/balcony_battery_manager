@@ -137,18 +137,23 @@ def charge_power(prev_charge: float, grid_export: float, *, reserve: float,
     return clamp(prev_charge + (grid_export - reserve), 0.0, max_charge)
 
 
-def grid_support_power(prev_feed: float, grid_export: float, *, margin: float,
+def grid_support_power(prev_feed: float, relief_demand: float, *, margin: float,
                        max_feed: float) -> float:
-    """Closed-loop discharge power that keeps the grid *import* at ~margin.
+    """Closed-loop discharge that covers the house when the main battery is empty.
 
-    Mirror of charge_power: grid import = -grid_export (grid_export positive =
-    export). We nudge the feed so the residual grid import settles at `margin`
-    (default 100 W) — i.e. the Solarbank supplies the house except that margin.
-    This automatically accounts for any PV/main-battery contribution and is
-    bounded to [0, max_feed]. Used when the main battery is empty.
+    `relief_demand` = main-battery draw + grid import (both positive) = everything
+    the Solarbank is NOT yet covering. We raise the feed until relief_demand drops
+    to ~`margin` (default 100 W), i.e. the Solarbank supplies the house except a
+    small residual grid import; the near-empty main battery then draws ~0.
+
+    Both terms are needed: a house battery like the E3DC keeps discharging down to
+    ~0 % SoC (so watching grid import alone fed nothing while it was drained flat),
+    AND once it is current-limited near empty the remaining load comes from the
+    grid (so watching the battery draw alone left the grid importing while a full
+    Solarbank sat idle). Summing them covers both. Raising the feed lowers
+    relief_demand 1:1, so the loop self-converges; bounded to [0, max_feed].
     """
-    grid_import = -grid_export
-    return clamp(prev_feed + (grid_import - margin), 0.0, max_feed)
+    return clamp(prev_feed + (relief_demand - margin), 0.0, max_feed)
 
 
 def grid_support_active(prev_active: bool, main_soc: float | None, soc_anker: float | None,
@@ -216,16 +221,22 @@ def decide(state: ControllerState, *, now: datetime, sunset: datetime,
         # Grid support overrides the staircase; keep its timer clean.
         state.discharge = DischargeState()
         state.last_charge_w = 0.0
-        feed = grid_support_power(state.last_support_w, grid_export,
+        # Cover the house: main-battery draw + grid import (an empty E3DC keeps
+        # discharging AND, once current-limited, leaves the rest on the grid).
+        grid_import = -grid_export
+        relief = p_batt_draw + grid_import
+        feed = grid_support_power(state.last_support_w, relief,
                                   margin=cfg["grid_support_margin"],
                                   max_feed=cfg["grid_support_max"])
         state.last_support_w = feed
         if feed > 0:
             return Decision(mode=MODE_GRID_SUPPORT, grid_flow="discharge",
                             target_power=feed, demand=demand, surplus=grid_export,
-                            reason=f"Hauptakku leer (SoC {main_soc}%), Einspeisung {feed:.0f}W")
+                            reason=(f"Hauptakku leer (SoC {main_soc}%), decke Haus mit "
+                                    f"{feed:.0f}W (Akku {p_batt_draw:.0f}W + Netz {grid_import:.0f}W)"))
         return Decision(mode=MODE_IDLE, grid_flow="", target_power=0.0, demand=demand,
-                        surplus=grid_export, reason="Hauptakku leer, kein Netzbezug")
+                        surplus=grid_export,
+                        reason="Hauptakku leer, aber Haus gedeckt (kein Netzbezug/keine Entladung)")
     state.last_support_w = 0.0
 
     # --- Discharge staircase (evaluated against corrected demand D) ---
