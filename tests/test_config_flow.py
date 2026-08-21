@@ -28,9 +28,7 @@ async def test_form_serialisable_without_prefill(hass: HomeAssistant) -> None:
     flow crash with HTTP 500 in the frontend on any install whose entities are
     not named like the author's. Guard against that regression.
     """
-    with patch(
-        "custom_components.balcony_battery_manager.prefill.suggest", return_value={}
-    ):
+    with patch("custom_components.balcony_battery_manager.prefill.suggest", return_value={}):
         result = await hass.config_entries.flow.async_init(
             C.DOMAIN, context={"source": SOURCE_USER}
         )
