@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.3] - 2026-08-21
+
 ### Added
 - GitHub Actions `Validate` workflow (HACS + hassfest) and `Test` workflow
   (ruff lint/format check and pytest) for continuous integration.
