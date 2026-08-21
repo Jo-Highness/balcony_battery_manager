@@ -4,3 +4,15 @@ __pycache__/
 .venv/
 venv/
 .coverage
+htmlcov/
+.ruff_cache/
+
+# Home Assistant
+.storage/
+
+# Editor / OS artefacts
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
