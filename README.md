@@ -86,12 +86,11 @@ Solarbank 4.
 
 ## Screenshots
 
-Screenshots are supplied by the maintainer — see
-[`images/README.md`](images/README.md) for the required motifs and sizes.
+> Captured from a demo Home Assistant with fictional data.
 
 | Config flow | Entities | Dashboard |
 |---|---|---|
-| ![Config flow](images/config-flow.png) | ![Entities](images/entities.png) | ![Dashboard](images/dashboard.png) |
+| ![The UI setup form](images/config-flow.png) | ![The integration's entry and device](images/entities.png) | ![Entities card: mode, target power, demand, surplus](images/dashboard.png) |
 
 ---
 
