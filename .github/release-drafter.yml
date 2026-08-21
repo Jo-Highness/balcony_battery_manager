@@ -1,0 +1,73 @@
+name-template: "v$RESOLVED_VERSION"
+tag-template: "v$RESOLVED_VERSION"
+
+categories:
+  - title: "🚀 Features"
+    labels:
+      - "feature"
+      - "enhancement"
+  - title: "🐛 Fixes"
+    labels:
+      - "fix"
+      - "bug"
+  - title: "📝 Documentation"
+    labels:
+      - "documentation"
+      - "docs"
+  - title: "🤖 CI"
+    labels:
+      - "ci"
+  - title: "🧹 Chore"
+    labels:
+      - "chore"
+      - "dependencies"
+
+change-template: "- $TITLE (#$NUMBER) @$AUTHOR"
+change-title-escapes: '\<*_&'
+
+version-resolver:
+  major:
+    labels:
+      - "major"
+      - "breaking"
+  minor:
+    labels:
+      - "minor"
+      - "feature"
+      - "enhancement"
+  patch:
+    labels:
+      - "patch"
+      - "fix"
+      - "bug"
+      - "documentation"
+      - "docs"
+      - "ci"
+      - "chore"
+      - "dependencies"
+  default: patch
+
+autolabeler:
+  - label: "breaking"
+    title:
+      - '/^[a-z]+(\(.+\))?!:/'
+  - label: "feature"
+    title:
+      - '/^feat(\(.+\))?:/'
+  - label: "fix"
+    title:
+      - '/^fix(\(.+\))?:/'
+  - label: "documentation"
+    title:
+      - '/^docs(\(.+\))?:/'
+  - label: "ci"
+    title:
+      - '/^(ci|build)(\(.+\))?:/'
+  - label: "chore"
+    title:
+      - '/^(chore|refactor|style|test|perf)(\(.+\))?:/'
+
+template: |
+  ## Changes
+
+  $CHANGES

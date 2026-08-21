@@ -1,0 +1,101 @@
+name: Bug report
+description: Report a problem with the Balcony Battery Manager integration
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report! Please fill in as much
+        detail as you can — it makes reproducing and fixing the issue much
+        faster.
+
+  - type: input
+    id: ha_version
+    attributes:
+      label: Home Assistant version
+      description: Settings → About (e.g. 2026.8.1)
+      placeholder: "2026.8.1"
+    validations:
+      required: true
+
+  - type: input
+    id: integration_version
+    attributes:
+      label: Balcony Battery Manager version
+      description: The integration version (see the manifest or the Integrations page)
+      placeholder: "2.1.2"
+    validations:
+      required: true
+
+  - type: input
+    id: actor_integration
+    attributes:
+      label: Which Solarbank / Solix integration provides the actor entities?
+      description: >
+        Name and version of the integration exposing the control entities
+        (e.g. anker_solix_official) that this integration writes to.
+      placeholder: "anker_solix_official vX.Y.Z"
+    validations:
+      required: true
+
+  - type: textarea
+    id: input_entities
+    attributes:
+      label: Selected input entities
+      description: >
+        The entities you configured as inputs (grid power, house consumption,
+        PV, main battery SoC, and the Solarbank select/number actor entities).
+      placeholder: |
+        Grid power: sensor.e3dc_grid_power
+        House consumption: sensor.house_power
+        PV: sensor.pv_power
+        Main SoC: sensor.e3dc_soc
+        Actor select: select.solarbank_grid_flow
+        Actor number: number.solarbank_target_grid_power
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+      description: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: What actually happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Debug logs
+      description: >
+        Enable debug logging by adding the following to configuration.yaml and
+        restarting Home Assistant, then paste the relevant log lines here:
+
+        ```yaml
+        logger:
+          logs:
+            custom_components.balcony_battery_manager: debug
+        ```
+      render: text
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I am running the latest released version of the integration.
+          required: true
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
+        - label: I have included debug logs (or explained why they are not available).
+          required: false

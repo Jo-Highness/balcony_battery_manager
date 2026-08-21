@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Home Assistant Community Forum
+    url: https://community.home-assistant.io/
+    about: >
+      For general questions, setup help, and discussion, please use the Home
+      Assistant Community Forum. Use the GitHub issue tracker only for bug
+      reports and feature requests.
