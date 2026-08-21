@@ -15,6 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Repository meta files: `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`,
   issue forms (bug report / feature request), pull-request template,
   Dependabot configuration, and Release Drafter configuration/workflow.
+- README screenshots (config flow, entities, dashboard) captured from a demo instance.
+
+### Fixed
+- The config flow crashed with an HTTP 500 (blank/unusable dialog) when
+  auto-detection found no matching entities — i.e. on any install whose entity
+  names differ from the author's. The setup form now renders regardless; a
+  regression test covers it.
 
 ## [2.1.2] - 2026-08-16
 
