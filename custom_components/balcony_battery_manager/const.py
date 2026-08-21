@@ -1,4 +1,5 @@
 """Constants for the Balcony Battery Manager integration (v2, Solarbank 4)."""
+
 from __future__ import annotations
 
 DOMAIN = "balcony_battery_manager"
@@ -11,50 +12,50 @@ CONFIG_VERSION = 2
 # Config / Options keys
 # ---------------------------------------------------------------------------
 # --- Input measurement entities ---
-CONF_P_BATT_DRAW = "p_batt_draw"                 # main-battery draw into house
-CONF_BATT_DRAW_POSITIVE = "batt_draw_positive"   # True: positive = discharge into house
-CONF_P_ANKER_OUT = "p_anker_out"                 # Solarbank feed-in to house (W)
-CONF_P_GRID = "p_grid"                           # grid power
+CONF_P_BATT_DRAW = "p_batt_draw"  # main-battery draw into house
+CONF_BATT_DRAW_POSITIVE = "batt_draw_positive"  # True: positive = discharge into house
+CONF_P_ANKER_OUT = "p_anker_out"  # Solarbank feed-in to house (W)
+CONF_P_GRID = "p_grid"  # grid power
 CONF_GRID_EXPORT_POSITIVE = "grid_export_positive"  # True: positive = export
-CONF_SOC_ANKER = "soc_anker"                     # Solarbank SoC (%)
-CONF_P_ANKER_PV = "p_anker_pv"                   # Solarbank PV power (W)
-CONF_SUN = "sun_entity"                          # sun.sun (sunset)
+CONF_SOC_ANKER = "soc_anker"  # Solarbank SoC (%)
+CONF_P_ANKER_PV = "p_anker_pv"  # Solarbank PV power (W)
+CONF_SUN = "sun_entity"  # sun.sun (sunset)
 
 # --- Actor entities (from the Solix-4 integration) ---
-CONF_GRID_FLOW_SELECT = "grid_flow_select"       # select: charge/discharge direction
+CONF_GRID_FLOW_SELECT = "grid_flow_select"  # select: charge/discharge direction
 CONF_GRID_FLOW_DISCHARGE = "grid_flow_discharge_option"  # option meaning "discharge"
-CONF_GRID_FLOW_CHARGE = "grid_flow_charge_option"        # option meaning "charge"
+CONF_GRID_FLOW_CHARGE = "grid_flow_charge_option"  # option meaning "charge"
 CONF_TARGET_POWER_NUMBER = "target_power_number"  # number: target grid power (W)
 
 # --- Discharge staircase ---
-CONF_DISCHARGE_TH1 = "discharge_threshold_1"     # D above -> at least stage 1
-CONF_DISCHARGE_TH2 = "discharge_threshold_2"     # D above -> stage 2
-CONF_DISCHARGE_STAGE1 = "discharge_stage_1"      # feed-in W for stage 1
-CONF_DISCHARGE_STAGE2 = "discharge_stage_2"      # feed-in W for stage 2
-CONF_DWELL_MINUTES = "dwell_minutes"             # continuous dwell time
-CONF_HYSTERESIS = "hysteresis"                   # anti-flap band (W)
+CONF_DISCHARGE_TH1 = "discharge_threshold_1"  # D above -> at least stage 1
+CONF_DISCHARGE_TH2 = "discharge_threshold_2"  # D above -> stage 2
+CONF_DISCHARGE_STAGE1 = "discharge_stage_1"  # feed-in W for stage 1
+CONF_DISCHARGE_STAGE2 = "discharge_stage_2"  # feed-in W for stage 2
+CONF_DWELL_MINUTES = "dwell_minutes"  # continuous dwell time
+CONF_HYSTERESIS = "hysteresis"  # anti-flap band (W)
 
 # --- Charging ---
-CONF_MAX_CHARGE = "max_charge"                   # max charge power (W)
-CONF_SURPLUS_RESERVE = "surplus_reserve"         # keep this much export (W)
-CONF_TARGET_SOC = "target_soc"                   # charge goal (%)
-CONF_CAPACITY_KWH = "capacity_kwh"               # usable battery capacity (kWh)
-CONF_PV_NOMINAL_W = "pv_nominal_w"               # Solarbank PV nominal (W)
-CONF_AFTERNOON_HOUR = "afternoon_hour"           # afternoon cap boundary (hour)
-CONF_AFTERNOON_FACTOR = "afternoon_factor"       # afternoon cap = nominal * factor
+CONF_MAX_CHARGE = "max_charge"  # max charge power (W)
+CONF_SURPLUS_RESERVE = "surplus_reserve"  # keep this much export (W)
+CONF_TARGET_SOC = "target_soc"  # charge goal (%)
+CONF_CAPACITY_KWH = "capacity_kwh"  # usable battery capacity (kWh)
+CONF_PV_NOMINAL_W = "pv_nominal_w"  # Solarbank PV nominal (W)
+CONF_AFTERNOON_HOUR = "afternoon_hour"  # afternoon cap boundary (hour)
+CONF_AFTERNOON_FACTOR = "afternoon_factor"  # afternoon cap = nominal * factor
 
 # --- Grid support (main battery empty -> cover house except a margin) ---
-CONF_MAIN_SOC = "main_soc"                       # main-battery SoC entity (%)
+CONF_MAIN_SOC = "main_soc"  # main-battery SoC entity (%)
 CONF_GRID_SUPPORT_ENABLED = "grid_support_enabled"
-CONF_MAIN_EMPTY_SOC = "main_empty_soc"           # main battery counts empty at/below (%)
+CONF_MAIN_EMPTY_SOC = "main_empty_soc"  # main battery counts empty at/below (%)
 CONF_MAIN_EMPTY_SOC_HYST = "main_empty_soc_hyst"  # SoC hysteresis to release (%)
 CONF_GRID_SUPPORT_MARGIN = "grid_support_margin"  # residual grid import to keep (W)
-CONF_GRID_SUPPORT_MAX = "grid_support_max"        # max feed-in in grid support (W)
-CONF_MIN_DISCHARGE_SOC = "min_discharge_soc"      # Solarbank must be above this (%)
+CONF_GRID_SUPPORT_MAX = "grid_support_max"  # max feed-in in grid support (W)
+CONF_MIN_DISCHARGE_SOC = "min_discharge_soc"  # Solarbank must be above this (%)
 
 # --- General ---
-CONF_INTERVAL = "control_interval"               # coordinator update interval (s)
-CONF_DEADBAND = "deadband"                        # min setpoint change to write (W)
+CONF_INTERVAL = "control_interval"  # coordinator update interval (s)
+CONF_DEADBAND = "deadband"  # min setpoint change to write (W)
 
 # ---------------------------------------------------------------------------
 # Defaults (values the operator gave; all overridable in the UI)
@@ -111,14 +112,20 @@ SERVICE_RECALCULATE_NOW = "recalculate_now"
 
 def build_cfg(options: dict) -> dict:
     """Collect the tunable parameters into the plain dict logic.decide expects."""
+
     def g(key, default):
         return options.get(key, default)
 
     return {
-        "discharge_steps": [0.0, g(CONF_DISCHARGE_STAGE1, DEFAULT_DISCHARGE_STAGE1),
-                            g(CONF_DISCHARGE_STAGE2, DEFAULT_DISCHARGE_STAGE2)],
-        "discharge_thresholds": [g(CONF_DISCHARGE_TH1, DEFAULT_DISCHARGE_TH1),
-                                 g(CONF_DISCHARGE_TH2, DEFAULT_DISCHARGE_TH2)],
+        "discharge_steps": [
+            0.0,
+            g(CONF_DISCHARGE_STAGE1, DEFAULT_DISCHARGE_STAGE1),
+            g(CONF_DISCHARGE_STAGE2, DEFAULT_DISCHARGE_STAGE2),
+        ],
+        "discharge_thresholds": [
+            g(CONF_DISCHARGE_TH1, DEFAULT_DISCHARGE_TH1),
+            g(CONF_DISCHARGE_TH2, DEFAULT_DISCHARGE_TH2),
+        ],
         "hysteresis": g(CONF_HYSTERESIS, DEFAULT_HYSTERESIS),
         "dwell_s": g(CONF_DWELL_MINUTES, DEFAULT_DWELL_MINUTES) * 60.0,
         "max_charge": g(CONF_MAX_CHARGE, DEFAULT_MAX_CHARGE),

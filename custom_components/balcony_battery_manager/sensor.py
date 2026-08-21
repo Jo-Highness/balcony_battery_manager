@@ -1,7 +1,8 @@
 """Diagnostic sensors exposing the controller state."""
+
 from __future__ import annotations
 
-from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfPower
 from homeassistant.core import HomeAssistant
@@ -24,12 +25,14 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     coordinator: BalconyBatteryCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities([
-        BalconyModeSensor(coordinator),
-        BalconyPowerSensor(coordinator, KEY_TARGET_POWER),
-        BalconyPowerSensor(coordinator, KEY_DEMAND),
-        BalconyPowerSensor(coordinator, KEY_SURPLUS),
-    ])
+    async_add_entities(
+        [
+            BalconyModeSensor(coordinator),
+            BalconyPowerSensor(coordinator, KEY_TARGET_POWER),
+            BalconyPowerSensor(coordinator, KEY_DEMAND),
+            BalconyPowerSensor(coordinator, KEY_SURPLUS),
+        ]
+    )
 
 
 class BalconyModeSensor(BalconyBatteryEntity, SensorEntity):

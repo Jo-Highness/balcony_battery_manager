@@ -4,15 +4,19 @@ Only used to pre-fill suggested values; the user can always override. Matches
 the Anker SOLIX (official integration, Solarbank 4) actor/sensor entities and
 the house-side E3DC/KNX meters by entity-id pattern.
 """
+
 from __future__ import annotations
+
+import contextlib
 
 from homeassistant.core import HomeAssistant
 
 from . import const as C
 
 
-def _find(hass: HomeAssistant, *needles: str, domain: str | None = None,
-          platform_hint: str | None = None) -> str | None:
+def _find(
+    hass: HomeAssistant, *needles: str, domain: str | None = None, platform_hint: str | None = None
+) -> str | None:
     """First entity whose id contains all needles (and matches domain)."""
     for state in hass.states.async_all():
         eid = state.entity_id
@@ -51,8 +55,9 @@ def suggest(hass: HomeAssistant) -> dict:
         s[C.CONF_GRID_EXPORT_POSITIVE] = False
 
     # --- Main-battery SoC (for grid support when the main battery is empty) ---
-    s[C.CONF_MAIN_SOC] = (_find(hass, "powerbatterysoc", domain="sensor")
-                          or _find(hass, "hauskraftwerk", "soc", domain="sensor"))
+    s[C.CONF_MAIN_SOC] = _find(hass, "powerbatterysoc", domain="sensor") or _find(
+        hass, "hauskraftwerk", "soc", domain="sensor"
+    )
 
     # --- Sun ---
     s[C.CONF_SUN] = "sun.sun" if hass.states.get("sun.sun") else None
@@ -61,9 +66,7 @@ def suggest(hass: HomeAssistant) -> dict:
     cap_eid = _find(hass, sb, "battery_capacity", domain="sensor")
     if cap_eid:
         st = hass.states.get(cap_eid)
-        try:
+        with contextlib.suppress(ValueError, TypeError, AttributeError):
             s[C.CONF_CAPACITY_KWH] = round(float(st.state), 2)
-        except (ValueError, TypeError, AttributeError):
-            pass
 
     return {k: v for k, v in s.items() if v is not None}

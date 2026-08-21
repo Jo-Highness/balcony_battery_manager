@@ -1,17 +1,17 @@
 """DataUpdateCoordinator that drives the Solarbank 4 via its actor entities."""
+
 from __future__ import annotations
 
 import asyncio
-import logging
 from datetime import datetime, timedelta
+import logging
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
-from . import const as C
-from . import logic
+from . import const as C, logic
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -33,7 +33,9 @@ class BalconyBatteryCoordinator(DataUpdateCoordinator[dict]):
         self._opts = {**entry.data, **entry.options}
         interval = int(self._opts.get(C.CONF_INTERVAL, C.DEFAULT_INTERVAL))
         super().__init__(
-            hass, _LOGGER, name=C.DOMAIN,
+            hass,
+            _LOGGER,
+            name=C.DOMAIN,
             update_interval=timedelta(seconds=interval),
         )
         self._cfg = C.build_cfg(self._opts)
@@ -57,8 +59,7 @@ class BalconyBatteryCoordinator(DataUpdateCoordinator[dict]):
     async def async_disable(self) -> None:
         self._enabled = False
         await self._apply(logic.failsafe_decision())
-        self.data = {**(self.data or {}), C.KEY_ENABLED: False,
-                     C.KEY_MODE: "disabled"}
+        self.data = {**(self.data or {}), C.KEY_ENABLED: False, C.KEY_MODE: "disabled"}
         self.async_update_listeners()
 
     async def async_recalculate_now(self) -> None:
@@ -78,8 +79,9 @@ class BalconyBatteryCoordinator(DataUpdateCoordinator[dict]):
         except (ValueError, TypeError):
             return None
 
-    def _signed(self, key: str, positive_flag_key: str, positive_default: bool,
-                positive_meaning: bool) -> float | None:
+    def _signed(
+        self, key: str, positive_flag_key: str, positive_default: bool, positive_meaning: bool
+    ) -> float | None:
         """Normalise a signed sensor to a desired positive convention.
 
         positive_meaning=True  -> caller wants the "positive" quantity
@@ -104,8 +106,7 @@ class BalconyBatteryCoordinator(DataUpdateCoordinator[dict]):
         self._last_cycle = now
 
         if not self._enabled:
-            return {C.KEY_ENABLED: False, C.KEY_MODE: "disabled",
-                    C.KEY_TARGET_POWER: 0.0}
+            return {C.KEY_ENABLED: False, C.KEY_MODE: "disabled", C.KEY_TARGET_POWER: 0.0}
 
         # Fail-safe: any required sensor missing -> 0/0.
         if any(self._num(k) is None for k in _REQUIRED):
@@ -114,20 +115,30 @@ class BalconyBatteryCoordinator(DataUpdateCoordinator[dict]):
             _LOGGER.warning("failsafe: required sensor unavailable -> 0W")
             return self._as_data(dec)
 
-        p_batt = self._signed(C.CONF_P_BATT_DRAW, C.CONF_BATT_DRAW_POSITIVE,
-                              C.DEFAULT_BATT_DRAW_POSITIVE, True)
+        p_batt = self._signed(
+            C.CONF_P_BATT_DRAW, C.CONF_BATT_DRAW_POSITIVE, C.DEFAULT_BATT_DRAW_POSITIVE, True
+        )
         p_out = self._num(C.CONF_P_ANKER_OUT) or 0.0
-        surplus = self._signed(C.CONF_P_GRID, C.CONF_GRID_EXPORT_POSITIVE,
-                              C.DEFAULT_GRID_EXPORT_POSITIVE, True)
+        surplus = self._signed(
+            C.CONF_P_GRID, C.CONF_GRID_EXPORT_POSITIVE, C.DEFAULT_GRID_EXPORT_POSITIVE, True
+        )
         soc = self._num(C.CONF_SOC_ANKER)
         pv = self._num(C.CONF_P_ANKER_PV) or 0.0
         main_soc = self._num(C.CONF_MAIN_SOC)  # optional; enables grid support
         sunset = self._sunset(now)
 
         dec = logic.decide(
-            self._state, now=now, sunset=sunset,
-            p_batt_draw=p_batt, p_anker_out=p_out, grid_export=surplus,
-            soc=soc, p_anker_pv=pv, dt_s=dt_s, cfg=self._cfg, main_soc=main_soc,
+            self._state,
+            now=now,
+            sunset=sunset,
+            p_batt_draw=p_batt,
+            p_anker_out=p_out,
+            grid_export=surplus,
+            soc=soc,
+            p_anker_pv=pv,
+            dt_s=dt_s,
+            cfg=self._cfg,
+            main_soc=main_soc,
         )
         await self._apply(dec)
         return self._as_data(dec)
@@ -175,9 +186,11 @@ class BalconyBatteryCoordinator(DataUpdateCoordinator[dict]):
 
         # Set direction first (only when actually feeding/charging).
         if select_eid and flow:
-            option = (self._opts.get(C.CONF_GRID_FLOW_DISCHARGE, C.DEFAULT_GRID_FLOW_DISCHARGE)
-                      if flow == "discharge"
-                      else self._opts.get(C.CONF_GRID_FLOW_CHARGE, C.DEFAULT_GRID_FLOW_CHARGE))
+            option = (
+                self._opts.get(C.CONF_GRID_FLOW_DISCHARGE, C.DEFAULT_GRID_FLOW_DISCHARGE)
+                if flow == "discharge"
+                else self._opts.get(C.CONF_GRID_FLOW_CHARGE, C.DEFAULT_GRID_FLOW_CHARGE)
+            )
             cur = self.hass.states.get(select_eid)
             if cur is None or cur.state != option:
                 await self._call_select(select_eid, option)
@@ -186,25 +199,28 @@ class BalconyBatteryCoordinator(DataUpdateCoordinator[dict]):
             last = self._last_written
             changed_flow = last is None or last[0] != flow
             changed_power = last is None or abs(last[1] - power) >= deadband
-            if changed_flow or changed_power or power == 0.0 and (last is None or last[1] != 0.0):
+            if changed_flow or changed_power or (power == 0.0 and (last is None or last[1] != 0.0)):
                 await self._call_number(number_eid, power)
                 self._last_written = (flow, power)
 
     async def _call_number(self, entity_id: str, value: float) -> None:
         try:
             await self.hass.services.async_call(
-                "number", "set_value",
-                {"entity_id": entity_id, "value": round(value)}, blocking=False)
-        except Exception as err:  # noqa: BLE001 - never let a write crash the loop
+                "number",
+                "set_value",
+                {"entity_id": entity_id, "value": round(value)},
+                blocking=False,
+            )
+        except Exception as err:
             _LOGGER.error("number.set_value %s=%s failed: %s", entity_id, value, err)
 
     async def _call_select(self, entity_id: str, option: str) -> None:
         domain = entity_id.split(".", 1)[0]  # select | input_select
         try:
             await self.hass.services.async_call(
-                domain, "select_option",
-                {"entity_id": entity_id, "option": option}, blocking=False)
-        except Exception as err:  # noqa: BLE001
+                domain, "select_option", {"entity_id": entity_id, "option": option}, blocking=False
+            )
+        except Exception as err:
             _LOGGER.error("select_option %s=%s failed: %s", entity_id, option, err)
 
     def _as_data(self, dec: logic.Decision) -> dict:

@@ -4,6 +4,7 @@ Everything here is deterministic and unit-testable without a running HA. The
 coordinator feeds live measurements + config in and applies the returned
 setpoints to the Solarbank actor entities.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -43,14 +44,20 @@ class DischargeState:
     -> at least stage 1" still fires even if D briefly crossed 1600 in between.
     """
 
-    step_index: int = 0                       # index into `steps` (0 = off)
-    up_timers: list[float] = field(default_factory=list)    # per threshold
+    step_index: int = 0  # index into `steps` (0 = off)
+    up_timers: list[float] = field(default_factory=list)  # per threshold
     down_timers: list[float] = field(default_factory=list)  # per threshold
 
 
-def update_discharge(state: DischargeState, demand: float, dt_s: float,
-                     steps: list[int], thresholds: list[float],
-                     hysteresis: float, dwell_s: float) -> int:
+def update_discharge(
+    state: DischargeState,
+    demand: float,
+    dt_s: float,
+    steps: list[int],
+    thresholds: list[float],
+    hysteresis: float,
+    dwell_s: float,
+) -> int:
     """Advance the staircase controller by dt_s seconds; return step power (W).
 
     thresholds ascending, len == number of steps - 1; thresholds[i] is the
@@ -67,8 +74,7 @@ def update_discharge(state: DischargeState, demand: float, dt_s: float,
         state.down_timers = [0.0] * n
     for i, th in enumerate(thresholds):
         state.up_timers[i] = state.up_timers[i] + dt_s if demand > th else 0.0
-        state.down_timers[i] = (state.down_timers[i] + dt_s
-                                if demand < th - hysteresis else 0.0)
+        state.down_timers[i] = state.down_timers[i] + dt_s if demand < th - hysteresis else 0.0
 
     # Upshift: highest threshold whose "above" timer reached the dwell.
     desired_up = 0
@@ -83,9 +89,15 @@ def update_discharge(state: DischargeState, demand: float, dt_s: float,
     return steps[state.step_index]
 
 
-def rest_pv_energy_wh(now: datetime, sunset: datetime, p_anker_pv: float,
-                      nominal_w: float, afternoon_hour: int,
-                      afternoon_factor: float, step_min: int = 5) -> float:
+def rest_pv_energy_wh(
+    now: datetime,
+    sunset: datetime,
+    p_anker_pv: float,
+    nominal_w: float,
+    afternoon_hour: int,
+    afternoon_factor: float,
+    step_min: int = 5,
+) -> float:
     """Estimate remaining Solarbank PV energy (Wh) from now until sunset.
 
     Heuristic from live power only (no external forecast): expected power at a
@@ -111,22 +123,31 @@ def charge_need_wh(soc: float, target_soc: float, capacity_kwh: float) -> float:
     return max(0.0, (target_soc - soc)) / 100.0 * capacity_kwh * 1000.0
 
 
-def charge_release(now: datetime, sunset: datetime, soc: float, p_anker_pv: float,
-                   *, target_soc: float, capacity_kwh: float, nominal_w: float,
-                   afternoon_hour: int, afternoon_factor: float) -> tuple[bool, float, float]:
+def charge_release(
+    now: datetime,
+    sunset: datetime,
+    soc: float,
+    p_anker_pv: float,
+    *,
+    target_soc: float,
+    capacity_kwh: float,
+    nominal_w: float,
+    afternoon_hour: int,
+    afternoon_factor: float,
+) -> tuple[bool, float, float]:
     """Predictive charge gate. Returns (release, need_wh, rest_pv_wh).
 
     Release charging from house surplus only if the estimated remaining PV
     energy is smaller than the energy needed to hit the target SoC by sunset.
     """
     need = charge_need_wh(soc, target_soc, capacity_kwh)
-    rest = rest_pv_energy_wh(now, sunset, p_anker_pv, nominal_w,
-                             afternoon_hour, afternoon_factor)
+    rest = rest_pv_energy_wh(now, sunset, p_anker_pv, nominal_w, afternoon_hour, afternoon_factor)
     return (rest < need and need > 0.0), need, rest
 
 
-def charge_power(prev_charge: float, grid_export: float, *, reserve: float,
-                 max_charge: float) -> float:
+def charge_power(
+    prev_charge: float, grid_export: float, *, reserve: float, max_charge: float
+) -> float:
     """Closed-loop charge power from live export surplus.
 
     grid_export is the *live* export (positive = exporting). We nudge the
@@ -137,8 +158,9 @@ def charge_power(prev_charge: float, grid_export: float, *, reserve: float,
     return clamp(prev_charge + (grid_export - reserve), 0.0, max_charge)
 
 
-def grid_support_power(prev_feed: float, relief_demand: float, *, margin: float,
-                       max_feed: float) -> float:
+def grid_support_power(
+    prev_feed: float, relief_demand: float, *, margin: float, max_feed: float
+) -> float:
     """Closed-loop discharge that covers the house when the main battery is empty.
 
     `relief_demand` = main-battery draw + grid import (both positive) = everything
@@ -156,9 +178,16 @@ def grid_support_power(prev_feed: float, relief_demand: float, *, margin: float,
     return clamp(prev_feed + (relief_demand - margin), 0.0, max_feed)
 
 
-def grid_support_active(prev_active: bool, main_soc: float | None, soc_anker: float | None,
-                        *, empty_soc: float, soc_hyst: float, min_discharge_soc: float,
-                        enabled: bool) -> bool:
+def grid_support_active(
+    prev_active: bool,
+    main_soc: float | None,
+    soc_anker: float | None,
+    *,
+    empty_soc: float,
+    soc_hyst: float,
+    min_discharge_soc: float,
+    enabled: bool,
+) -> bool:
     """Decide whether the main-battery-empty grid support should run.
 
     Turns ON when the main battery SoC drops to `empty_soc`, OFF again only
@@ -180,8 +209,8 @@ class Decision:
     """Result of one coordination cycle."""
 
     mode: str
-    grid_flow: str            # "discharge" | "charge" | "" (idle)
-    target_power: float       # W for number.target_grid_power
+    grid_flow: str  # "discharge" | "charge" | "" (idle)
+    target_power: float  # W for number.target_grid_power
     demand: float = 0.0
     surplus: float = 0.0
     charge_release: bool = False
@@ -200,10 +229,20 @@ class ControllerState:
     last_support_w: float = 0.0
 
 
-def decide(state: ControllerState, *, now: datetime, sunset: datetime,
-           p_batt_draw: float, p_anker_out: float, grid_export: float,
-           soc: float, p_anker_pv: float, dt_s: float, cfg: dict,
-           main_soc: float | None = None) -> Decision:
+def decide(
+    state: ControllerState,
+    *,
+    now: datetime,
+    sunset: datetime,
+    p_batt_draw: float,
+    p_anker_out: float,
+    grid_export: float,
+    soc: float,
+    p_anker_pv: float,
+    dt_s: float,
+    cfg: dict,
+    main_soc: float | None = None,
+) -> Decision:
     """Single coordination cycle: pick exactly one mode and its setpoint.
 
     Priority: grid support (main battery empty) > discharge staircase (high
@@ -214,9 +253,14 @@ def decide(state: ControllerState, *, now: datetime, sunset: datetime,
 
     # --- Grid support: main battery empty -> cover the house except `margin` ---
     state.grid_support_on = grid_support_active(
-        state.grid_support_on, main_soc, soc,
-        empty_soc=cfg["main_empty_soc"], soc_hyst=cfg["main_empty_soc_hyst"],
-        min_discharge_soc=cfg["min_discharge_soc"], enabled=cfg["grid_support_enabled"])
+        state.grid_support_on,
+        main_soc,
+        soc,
+        empty_soc=cfg["main_empty_soc"],
+        soc_hyst=cfg["main_empty_soc_hyst"],
+        min_discharge_soc=cfg["min_discharge_soc"],
+        enabled=cfg["grid_support_enabled"],
+    )
     if state.grid_support_on:
         # Grid support overrides the staircase; keep its timer clean.
         state.discharge = DischargeState()
@@ -225,63 +269,121 @@ def decide(state: ControllerState, *, now: datetime, sunset: datetime,
         # discharging AND, once current-limited, leaves the rest on the grid).
         grid_import = -grid_export
         relief = p_batt_draw + grid_import
-        feed = grid_support_power(state.last_support_w, relief,
-                                  margin=cfg["grid_support_margin"],
-                                  max_feed=cfg["grid_support_max"])
+        feed = grid_support_power(
+            state.last_support_w,
+            relief,
+            margin=cfg["grid_support_margin"],
+            max_feed=cfg["grid_support_max"],
+        )
         state.last_support_w = feed
         if feed > 0:
-            return Decision(mode=MODE_GRID_SUPPORT, grid_flow="discharge",
-                            target_power=feed, demand=demand, surplus=grid_export,
-                            reason=(f"Hauptakku leer (SoC {main_soc}%), decke Haus mit "
-                                    f"{feed:.0f}W (Akku {p_batt_draw:.0f}W + Netz {grid_import:.0f}W)"))
-        return Decision(mode=MODE_IDLE, grid_flow="", target_power=0.0, demand=demand,
-                        surplus=grid_export,
-                        reason="Hauptakku leer, aber Haus gedeckt (kein Netzbezug/keine Entladung)")
+            return Decision(
+                mode=MODE_GRID_SUPPORT,
+                grid_flow="discharge",
+                target_power=feed,
+                demand=demand,
+                surplus=grid_export,
+                reason=(
+                    f"Hauptakku leer (SoC {main_soc}%), decke Haus mit "
+                    f"{feed:.0f}W (Akku {p_batt_draw:.0f}W + Netz {grid_import:.0f}W)"
+                ),
+            )
+        return Decision(
+            mode=MODE_IDLE,
+            grid_flow="",
+            target_power=0.0,
+            demand=demand,
+            surplus=grid_export,
+            reason="Hauptakku leer, aber Haus gedeckt (kein Netzbezug/keine Entladung)",
+        )
     state.last_support_w = 0.0
 
     # --- Discharge staircase (evaluated against corrected demand D) ---
     step_w = update_discharge(
-        state.discharge, demand, dt_s,
-        steps=cfg["discharge_steps"], thresholds=cfg["discharge_thresholds"],
-        hysteresis=cfg["hysteresis"], dwell_s=cfg["dwell_s"],
+        state.discharge,
+        demand,
+        dt_s,
+        steps=cfg["discharge_steps"],
+        thresholds=cfg["discharge_thresholds"],
+        hysteresis=cfg["hysteresis"],
+        dwell_s=cfg["dwell_s"],
     )
 
     if step_w > 0:
         # Discharging wins; do not accumulate charge power.
         state.last_charge_w = 0.0
-        return Decision(mode=MODE_DISCHARGE, grid_flow="discharge",
-                        target_power=step_w, demand=demand,
-                        reason=f"D={demand:.0f}W -> Stufe {step_w:.0f}W")
+        return Decision(
+            mode=MODE_DISCHARGE,
+            grid_flow="discharge",
+            target_power=step_w,
+            demand=demand,
+            reason=f"D={demand:.0f}W -> Stufe {step_w:.0f}W",
+        )
 
     # --- Predictive PV-surplus charging ---
     release, need_wh, rest_wh = charge_release(
-        now, sunset, soc, p_anker_pv,
-        target_soc=cfg["target_soc"], capacity_kwh=cfg["capacity_kwh"],
-        nominal_w=cfg["pv_nominal_w"], afternoon_hour=cfg["afternoon_hour"],
+        now,
+        sunset,
+        soc,
+        p_anker_pv,
+        target_soc=cfg["target_soc"],
+        capacity_kwh=cfg["capacity_kwh"],
+        nominal_w=cfg["pv_nominal_w"],
+        afternoon_hour=cfg["afternoon_hour"],
         afternoon_factor=cfg["afternoon_factor"],
     )
     if release:
-        c = charge_power(state.last_charge_w, grid_export,
-                         reserve=cfg["surplus_reserve"], max_charge=cfg["max_charge"])
+        c = charge_power(
+            state.last_charge_w,
+            grid_export,
+            reserve=cfg["surplus_reserve"],
+            max_charge=cfg["max_charge"],
+        )
         state.last_charge_w = c
         if c > 0:
-            return Decision(mode=MODE_CHARGE, grid_flow="charge", target_power=c,
-                            demand=demand, surplus=grid_export, charge_release=True,
-                            need_wh=need_wh, rest_pv_wh=rest_wh,
-                            reason=f"Defizit {need_wh - rest_wh:.0f}Wh, laden {c:.0f}W")
+            return Decision(
+                mode=MODE_CHARGE,
+                grid_flow="charge",
+                target_power=c,
+                demand=demand,
+                surplus=grid_export,
+                charge_release=True,
+                need_wh=need_wh,
+                rest_pv_wh=rest_wh,
+                reason=f"Defizit {need_wh - rest_wh:.0f}Wh, laden {c:.0f}W",
+            )
         # Deficit exists but currently no surplus -> hold at 0 (still charge mode intent)
-        return Decision(mode=MODE_IDLE, grid_flow="", target_power=0.0,
-                        demand=demand, surplus=grid_export, charge_release=True,
-                        need_wh=need_wh, rest_pv_wh=rest_wh,
-                        reason="Defizit, aber kein Ueberschuss")
+        return Decision(
+            mode=MODE_IDLE,
+            grid_flow="",
+            target_power=0.0,
+            demand=demand,
+            surplus=grid_export,
+            charge_release=True,
+            need_wh=need_wh,
+            rest_pv_wh=rest_wh,
+            reason="Defizit, aber kein Ueberschuss",
+        )
 
     state.last_charge_w = 0.0
-    return Decision(mode=MODE_IDLE, grid_flow="", target_power=0.0, demand=demand,
-                    surplus=grid_export, need_wh=need_wh, rest_pv_wh=rest_wh,
-                    reason="Leerlauf (PV deckt Bedarf)")
+    return Decision(
+        mode=MODE_IDLE,
+        grid_flow="",
+        target_power=0.0,
+        demand=demand,
+        surplus=grid_export,
+        need_wh=need_wh,
+        rest_pv_wh=rest_wh,
+        reason="Leerlauf (PV deckt Bedarf)",
+    )
 
 
 def failsafe_decision(demand: float = 0.0) -> Decision:
     """Sensor outage -> feed-in AND charging to 0."""
-    return Decision(mode=MODE_FAILSAFE, grid_flow="", target_power=0.0,
-                    demand=demand, reason="Fail-safe: Sensor unavailable -> 0W")
+    return Decision(
+        mode=MODE_FAILSAFE,
+        grid_flow="",
+        target_power=0.0,
+        demand=demand,
+        reason="Fail-safe: Sensor unavailable -> 0W",
+    )

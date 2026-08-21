@@ -1,4 +1,5 @@
 """The Balcony Battery Manager integration (v2, Anker SOLIX Solarbank 4)."""
+
 from __future__ import annotations
 
 import logging
@@ -22,9 +23,7 @@ PLATFORMS = ["sensor", "switch"]
 
 def _coordinators(hass: HomeAssistant) -> list[BalconyBatteryCoordinator]:
     return [
-        c
-        for c in hass.data.get(DOMAIN, {}).values()
-        if isinstance(c, BalconyBatteryCoordinator)
+        c for c in hass.data.get(DOMAIN, {}).values() if isinstance(c, BalconyBatteryCoordinator)
     ]
 
 
