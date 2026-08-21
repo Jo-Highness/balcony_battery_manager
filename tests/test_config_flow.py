@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 from homeassistant.config_entries import SOURCE_USER
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
+import voluptuous as vol
 
 from custom_components.balcony_battery_manager import const as C
 
@@ -16,6 +19,24 @@ async def test_form_shown(hass: HomeAssistant) -> None:
     result = await hass.config_entries.flow.async_init(C.DOMAIN, context={"source": SOURCE_USER})
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "user"
+
+
+async def test_form_serialisable_without_prefill(hass: HomeAssistant) -> None:
+    """With no prefill matches the form schema must stay JSON-serialisable.
+
+    A leftover ``vol.UNDEFINED`` description leaks into the schema and makes the
+    flow crash with HTTP 500 in the frontend on any install whose entities are
+    not named like the author's. Guard against that regression.
+    """
+    with patch(
+        "custom_components.balcony_battery_manager.prefill.suggest", return_value={}
+    ):
+        result = await hass.config_entries.flow.async_init(
+            C.DOMAIN, context={"source": SOURCE_USER}
+        )
+    assert result["type"] is FlowResultType.FORM
+    for marker in result["data_schema"].schema:
+        assert getattr(marker, "description", None) is not vol.UNDEFINED
 
 
 async def test_flow_happy_path(hass: HomeAssistant) -> None:

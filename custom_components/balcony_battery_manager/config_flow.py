@@ -36,8 +36,13 @@ def _schema(defaults: dict) -> vol.Schema:
     """Full parameter schema; `defaults` supplies suggested_value per key."""
 
     def d(key, fallback):
+        # Return a plain marker (description=None) when there is no suggestion.
+        # Passing vol.UNDEFINED as a description leaks into the schema and makes
+        # the flow un-serialisable (HTTP 500) on systems where prefill found no
+        # matching entities — i.e. any install whose entities aren't named like
+        # the author's. None is omitted by the serializer, so the form renders.
         val = defaults.get(key, fallback)
-        return {"suggested_value": val} if val is not None else vol.UNDEFINED
+        return {"suggested_value": val} if val is not None else None
 
     return vol.Schema(
         {
