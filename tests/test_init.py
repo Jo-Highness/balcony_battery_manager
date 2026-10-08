@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
+from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.balcony_battery_manager import const as C
+from custom_components.balcony_battery_manager import const as C, logic
 
 from .conftest import FULL_DATA
 
@@ -77,3 +80,58 @@ async def test_migration_rejects_v1(hass: HomeAssistant) -> None:
     await hass.config_entries.async_setup(old.entry_id)
     await hass.async_block_till_done()
     assert old.state is ConfigEntryState.MIGRATION_ERROR
+
+
+async def test_master_switch_off_survives_reload(hass: HomeAssistant, config_entry) -> None:
+    """A deliberate 'off' is persisted (NFR-4/A-5) and not silently re-enabled."""
+    config_entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(C.DOMAIN, C.SERVICE_DISABLE, {}, blocking=True)
+    await hass.async_block_till_done()
+
+    assert await hass.config_entries.async_reload(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    coordinator = hass.data[C.DOMAIN][config_entry.entry_id]
+    assert coordinator.data[C.KEY_ENABLED] is False
+    assert coordinator.data[C.KEY_MODE] == "disabled"
+    switch = _eid(hass, config_entry, "switch", C.KEY_ENABLED)
+    assert hass.states.get(switch).state == "off"
+
+    # ... and switching it back on is persisted as well.
+    await hass.services.async_call(C.DOMAIN, C.SERVICE_ENABLE, {}, blocking=True)
+    assert await hass.config_entries.async_reload(config_entry.entry_id)
+    await hass.async_block_till_done()
+    assert hass.data[C.DOMAIN][config_entry.entry_id].data[C.KEY_ENABLED] is True
+
+
+async def test_decide_receives_local_time(hass: HomeAssistant, config_entry) -> None:
+    """The afternoon cap hour is local wall-clock time -> decide() gets local `now`."""
+    await hass.config.async_set_time_zone("Europe/Berlin")
+    for key, value in (
+        (C.CONF_P_BATT_DRAW, "100"),
+        (C.CONF_P_ANKER_OUT, "0"),
+        (C.CONF_P_GRID, "0"),
+        (C.CONF_SOC_ANKER, "50"),
+        (C.CONF_P_ANKER_PV, "300"),
+    ):
+        hass.states.async_set(FULL_DATA[key], value)
+
+    seen: list = []
+    real_decide = logic.decide
+
+    def _spy(*args, **kwargs):
+        seen.append(kwargs["now"])
+        return real_decide(*args, **kwargs)
+
+    config_entry.add_to_hass(hass)
+    with patch.object(logic, "decide", _spy):
+        await hass.config_entries.async_setup(config_entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert seen, "decide() was not called"
+    now = seen[-1]
+    assert now.utcoffset() == dt_util.now().utcoffset()
+    assert now.hour == dt_util.now().hour

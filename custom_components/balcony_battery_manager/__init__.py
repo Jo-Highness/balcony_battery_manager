@@ -6,6 +6,7 @@ import logging
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.helpers.storage import Store
 
 from .const import (
     CONFIG_VERSION,
@@ -14,7 +15,7 @@ from .const import (
     SERVICE_ENABLE,
     SERVICE_RECALCULATE_NOW,
 )
-from .coordinator import BalconyBatteryCoordinator
+from .coordinator import STORAGE_VERSION, BalconyBatteryCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -72,6 +73,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             hass.services.async_remove(DOMAIN, service)
 
     return unload_ok
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Drop the persisted master-switch state when the entry is deleted."""
+    await Store(hass, STORAGE_VERSION, f"{DOMAIN}.{entry.entry_id}").async_remove()
 
 
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:

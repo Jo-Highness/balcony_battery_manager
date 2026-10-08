@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- The predictive charge gate evaluated the afternoon cap boundary (`afternoon_hour`)
+  against the **UTC** hour instead of local time, shifting the cap by 1–2 h in
+  Central Europe. The controller now works with local time.
+- The master switch state was not persisted: after a Home Assistant restart or an
+  options reload, a deliberately disabled controller silently re-enabled itself and
+  started writing setpoints again. The state is now stored (removed with the entry).
+
+### Changed
+- The coordinator passes its config entry explicitly (HA 2024.11+ API, within the
+  declared minimum of 2024.12).
+
 ## [2.1.3] - 2026-08-21
 
 ### Added

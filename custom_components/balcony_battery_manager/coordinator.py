@@ -8,12 +8,15 @@ import logging
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
 from . import const as C, logic
 
 _LOGGER = logging.getLogger(__name__)
+
+STORAGE_VERSION = 1
 
 # Sensors that must be available; if any is missing we fail safe to 0/0.
 _REQUIRED = (
@@ -35,6 +38,7 @@ class BalconyBatteryCoordinator(DataUpdateCoordinator[dict]):
         super().__init__(
             hass,
             _LOGGER,
+            config_entry=entry,
             name=C.DOMAIN,
             update_interval=timedelta(seconds=interval),
         )
@@ -44,9 +48,18 @@ class BalconyBatteryCoordinator(DataUpdateCoordinator[dict]):
         self._lock = asyncio.Lock()
         self._last_cycle: datetime | None = None
         self._last_written: tuple[str, float] | None = None
+        # Persist the master switch so a deliberate "off" survives a restart
+        # (REQUIREMENTS NFR-4 / A-5) instead of silently re-enabling control.
+        self._store: Store = Store(hass, STORAGE_VERSION, f"{C.DOMAIN}.{entry.entry_id}")
 
     async def async_setup(self) -> None:
+        stored = await self._store.async_load()
+        if isinstance(stored, dict) and C.KEY_ENABLED in stored:
+            self._enabled = bool(stored[C.KEY_ENABLED])
         await self.async_config_entry_first_refresh()
+
+    async def _async_save_enabled(self) -> None:
+        await self._store.async_save({C.KEY_ENABLED: self._enabled})
 
     async def async_shutdown(self) -> None:  # type: ignore[override]
         await super().async_shutdown()
@@ -54,10 +67,12 @@ class BalconyBatteryCoordinator(DataUpdateCoordinator[dict]):
     # ---- master switch / services -------------------------------------
     async def async_enable(self) -> None:
         self._enabled = True
+        await self._async_save_enabled()
         await self.async_recalculate_now()
 
     async def async_disable(self) -> None:
         self._enabled = False
+        await self._async_save_enabled()
         await self._apply(logic.failsafe_decision())
         self.data = {**(self.data or {}), C.KEY_ENABLED: False, C.KEY_MODE: "disabled"}
         self.async_update_listeners()
@@ -129,7 +144,9 @@ class BalconyBatteryCoordinator(DataUpdateCoordinator[dict]):
 
         dec = logic.decide(
             self._state,
-            now=now,
+            # Local time: the afternoon cap boundary (CONF_AFTERNOON_HOUR) is a
+            # local wall-clock hour, not a UTC hour.
+            now=dt_util.as_local(now),
             sunset=sunset,
             p_batt_draw=p_batt,
             p_anker_out=p_out,
