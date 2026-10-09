@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.4] - 2026-10-09
+
 ### Fixed
 - The predictive charge gate evaluated the afternoon cap boundary (`afternoon_hour`)
   against the **UTC** hour instead of local time, shifting the cap by 1–2 h in
@@ -88,7 +90,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - AC-charge power control via a `select` entity for chargers (such as the
   Solarbank 3) that expose no `number` entity.
 
-[Unreleased]: https://github.com/Jo-Highness/balcony_battery_manager/compare/v2.1.2...HEAD
+[Unreleased]: https://github.com/Jo-Highness/balcony_battery_manager/compare/v2.1.4...HEAD
+[2.1.4]: https://github.com/Jo-Highness/balcony_battery_manager/compare/v2.1.3...v2.1.4
 [2.1.2]: https://github.com/Jo-Highness/balcony_battery_manager/compare/v2.1.1...v2.1.2
 [2.1.1]: https://github.com/Jo-Highness/balcony_battery_manager/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/Jo-Highness/balcony_battery_manager/compare/v2.0.0...v2.1.0
