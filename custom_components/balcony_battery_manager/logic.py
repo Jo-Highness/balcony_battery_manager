@@ -326,6 +326,7 @@ def decide(
             grid_flow="discharge",
             target_power=step_w,
             demand=demand,
+            surplus=grid_export,
             reason=f"D={demand:.0f}W -> Stufe {step_w:.0f}W",
         )
 

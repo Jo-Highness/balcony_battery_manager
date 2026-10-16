@@ -548,3 +548,27 @@ def test_no_windup_while_deadband_skips():
         if abs(c - written) < 25:  # deadband: not written
             logic.sync_applied(st, logic.MODE_CHARGE, written)
     assert st.last_charge_w == written
+
+
+def test_discharge_decision_reports_surplus():
+    st = _state()
+    st.discharge.step_index = 1
+    dec = _decide_high_demand(st, soc=50)
+    assert dec.mode == logic.MODE_DISCHARGE
+    assert dec.surplus == 0  # grid_export passed through (0 here)
+    st2 = _state()
+    st2.discharge.step_index = 1
+    now = datetime(2026, 7, 1, 20, 0, tzinfo=UTC)
+    dec2 = logic.decide(
+        st2,
+        now=now,
+        sunset=now + timedelta(minutes=30),
+        p_batt_draw=900,
+        p_anker_out=0,
+        grid_export=-150,
+        soc=50,
+        p_anker_pv=0,
+        dt_s=30,
+        cfg=CFG,
+    )
+    assert dec2.surplus == -150
