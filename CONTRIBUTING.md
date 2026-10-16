@@ -17,16 +17,21 @@ changes.
 balcony_battery_manager/
 ├── custom_components/
 │   └── balcony_battery_manager/   # the integration source
-│       ├── __init__.py            # setup / unload
-│       ├── config_flow.py         # UI config flow + prefill
-│       ├── coordinator.py         # control logic (discharge staging, charging)
+│       ├── __init__.py            # setup / unload / migration / actions
+│       ├── config_flow.py         # sectioned UI config + options flow, validation
+│       ├── prefill.py             # unambiguous-only entity suggestions
+│       ├── coordinator.py         # reads sensors, writes actuators (safety rules)
+│       ├── logic.py               # pure control logic (no HA imports)
+│       ├── units.py               # unit conversion (W/kW/MW, %, Wh/kWh)
 │       ├── const.py
 │       ├── manifest.json
 │       └── ...
+├── docs/requirements.md           # v2 requirements
 ├── tests/                         # pytest suite
 ├── CHANGELOG.md
 ├── hacs.json
-└── README.md
+└── README.md / README.de.md       # keep both in sync
+
 ```
 
 ## Development environment
@@ -37,11 +42,11 @@ Use a Python virtual environment:
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
-pip install ruff pytest pytest-homeassistant-custom-component
+pip install ruff -r requirements_test.txt
 ```
 
-`pytest-homeassistant-custom-component` pulls in a matching Home Assistant
-version and the test fixtures the suite relies on.
+`requirements_test.txt` pins `pytest-homeassistant-custom-component`, which pulls in
+a matching Home Assistant version and the test fixtures the suite relies on.
 
 ## Running the checks
 
@@ -54,8 +59,8 @@ ruff check .
 # Formatting (check only — does not modify files)
 ruff format --check .
 
-# Tests
-pytest
+# Tests (with coverage)
+pytest --cov=custom_components.balcony_battery_manager
 ```
 
 To auto-fix formatting locally, run `ruff format .` (without `--check`).
@@ -71,7 +76,7 @@ Examples:
 - `feat(coordinator): predictive PV-surplus charging`
 - `fix(discharge): independent per-threshold timers`
 - `docs: document config-flow prefill`
-- `test(config-flow): cover E3DC sign prefill`
+- `test(config-flow): cover unambiguous prefill`
 - `ci: add hassfest validation`
 
 Breaking changes use a `!` (e.g. `feat(coordinator)!: ...`) and/or a

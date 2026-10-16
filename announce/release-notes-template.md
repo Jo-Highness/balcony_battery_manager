@@ -1,7 +1,7 @@
 # Balcony Battery Manager vNEW
 
 <!-- Reusable release-notes template.
-     - Replace vNEW with the new version (e.g. v2.1.3) and vPREV with the previous tag (e.g. v2.1.2).
+     - Replace vNEW with the new version (e.g. v2.2.0) and vPREV with the previous tag (e.g. v2.1.4).
      - Delete any section that has no entries for this release.
      - Keep entries short, factual, past tense. One change per bullet.
      - IMAGE/GIF: add a screenshot only if the release changes something visible (new sensor,
@@ -29,7 +29,7 @@
 
 ---
 
-**Requirements:** min HA 2024.12 · MIT
+**Requirements:** min HA 2025.2 · MIT
 **Depends on:** a separate Anker Solix integration providing the Solarbank 4 third-party-control actor entities (grid-flow select + target-grid-power number).
 
 **Full changelog:** https://github.com/Jo-Highness/balcony_battery_manager/compare/vPREV...vNEW
