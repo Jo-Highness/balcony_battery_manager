@@ -1,16 +1,23 @@
 enable:
-  name: Enable
-  description: >-
-    Activate the balcony battery control loop. Runs one calculation immediately.
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: balcony_battery_manager
 
 disable:
-  name: Disable
-  description: >-
-    Deactivate the control loop and run the configured deactivation action
-    (set everything to 0, or restore the Anker mode).
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: balcony_battery_manager
 
 recalculate_now:
-  name: Recalculate now
-  description: >-
-    Trigger an immediate evaluation and control update, outside the regular
-    control interval.
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: balcony_battery_manager

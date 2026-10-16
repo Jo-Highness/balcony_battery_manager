@@ -1,0 +1,45 @@
+{
+  "entity": {
+    "sensor": {
+      "mode": {
+        "default": "mdi:battery-sync",
+        "state": {
+          "idle": "mdi:battery-outline",
+          "discharge": "mdi:battery-arrow-down",
+          "charge": "mdi:battery-arrow-up",
+          "grid_support": "mdi:transmission-tower-import",
+          "failsafe": "mdi:battery-alert",
+          "disabled": "mdi:battery-off-outline"
+        }
+      },
+      "target_power": {
+        "default": "mdi:target"
+      },
+      "corrected_demand": {
+        "default": "mdi:home-lightning-bolt"
+      },
+      "surplus": {
+        "default": "mdi:solar-power"
+      }
+    },
+    "switch": {
+      "enabled": {
+        "default": "mdi:robot",
+        "state": {
+          "off": "mdi:robot-off"
+        }
+      }
+    }
+  },
+  "services": {
+    "enable": {
+      "service": "mdi:play"
+    },
+    "disable": {
+      "service": "mdi:stop"
+    },
+    "recalculate_now": {
+      "service": "mdi:refresh"
+    }
+  }
+}

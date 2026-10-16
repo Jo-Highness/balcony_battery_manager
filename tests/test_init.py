@@ -6,11 +6,16 @@ from unittest.mock import patch
 
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
+import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.balcony_battery_manager import const as C, logic
+from custom_components.balcony_battery_manager.diagnostics import (
+    async_get_config_entry_diagnostics,
+)
 
 from .conftest import FULL_DATA
 
@@ -42,7 +47,7 @@ async def test_setup_creates_entities(hass: HomeAssistant, config_entry) -> None
     assert hass.states.get(mode).state == "failsafe"
     assert hass.states.get(switch).state == "on"
 
-    coordinator = hass.data[C.DOMAIN][config_entry.entry_id]
+    coordinator = config_entry.runtime_data
     assert coordinator.last_update_success is True
     assert coordinator.data[C.KEY_ENABLED] is True
 
@@ -56,7 +61,6 @@ async def test_unload(hass: HomeAssistant, config_entry) -> None:
     assert await hass.config_entries.async_unload(config_entry.entry_id)
     await hass.async_block_till_done()
     assert config_entry.state is ConfigEntryState.NOT_LOADED
-    assert config_entry.entry_id not in hass.data.get(C.DOMAIN, {})
 
 
 async def test_disable_service_sets_disabled_mode(hass: HomeAssistant, config_entry) -> None:
@@ -68,7 +72,7 @@ async def test_disable_service_sets_disabled_mode(hass: HomeAssistant, config_en
     await hass.services.async_call(C.DOMAIN, C.SERVICE_DISABLE, {}, blocking=True)
     await hass.async_block_till_done()
 
-    coordinator = hass.data[C.DOMAIN][config_entry.entry_id]
+    coordinator = config_entry.runtime_data
     assert coordinator.data[C.KEY_ENABLED] is False
     assert coordinator.data[C.KEY_MODE] == "disabled"
 
@@ -94,7 +98,7 @@ async def test_master_switch_off_survives_reload(hass: HomeAssistant, config_ent
     assert await hass.config_entries.async_reload(config_entry.entry_id)
     await hass.async_block_till_done()
 
-    coordinator = hass.data[C.DOMAIN][config_entry.entry_id]
+    coordinator = config_entry.runtime_data
     assert coordinator.data[C.KEY_ENABLED] is False
     assert coordinator.data[C.KEY_MODE] == "disabled"
     switch = _eid(hass, config_entry, "switch", C.KEY_ENABLED)
@@ -104,7 +108,7 @@ async def test_master_switch_off_survives_reload(hass: HomeAssistant, config_ent
     await hass.services.async_call(C.DOMAIN, C.SERVICE_ENABLE, {}, blocking=True)
     assert await hass.config_entries.async_reload(config_entry.entry_id)
     await hass.async_block_till_done()
-    assert hass.data[C.DOMAIN][config_entry.entry_id].data[C.KEY_ENABLED] is True
+    assert config_entry.runtime_data.data[C.KEY_ENABLED] is True
 
 
 async def test_decide_receives_local_time(hass: HomeAssistant, config_entry) -> None:
@@ -135,3 +139,96 @@ async def test_decide_receives_local_time(hass: HomeAssistant, config_entry) -> 
     now = seen[-1]
     assert now.utcoffset() == dt_util.now().utcoffset()
     assert now.hour == dt_util.now().hour
+
+
+async def test_migration_v21_moves_data_to_options(hass: HomeAssistant) -> None:
+    """v2.1 entries (settings in data, partial options) are merged into options."""
+    old = MockConfigEntry(
+        domain=C.DOMAIN,
+        version=2,
+        minor_version=1,
+        data={**FULL_DATA, C.CONF_MAIN_SOC: "sensor.main_soc"},
+        options={C.CONF_INTERVAL: 60.0},
+    )
+    old.add_to_hass(hass)
+    await hass.config_entries.async_setup(old.entry_id)
+    await hass.async_block_till_done()
+    assert old.state is ConfigEntryState.LOADED
+    assert old.minor_version == C.CONFIG_MINOR_VERSION
+    assert old.data == {}
+    assert old.options[C.CONF_INTERVAL] == 60.0
+    assert old.options[C.CONF_MAIN_SOC] == "sensor.main_soc"
+    assert old.unique_id == FULL_DATA[C.CONF_TARGET_POWER_NUMBER]
+
+
+async def test_services_target_entry(hass: HomeAssistant, config_entry, actuators) -> None:
+    config_entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            C.DOMAIN, C.SERVICE_DISABLE, {C.ATTR_CONFIG_ENTRY_ID: "nope"}, blocking=True
+        )
+    await hass.services.async_call(
+        C.DOMAIN,
+        C.SERVICE_DISABLE,
+        {C.ATTR_CONFIG_ENTRY_ID: config_entry.entry_id},
+        blocking=True,
+    )
+    assert config_entry.runtime_data.enabled is False
+    assert actuators.calls[-1] == ("number", 0)
+    await hass.services.async_call(
+        C.DOMAIN,
+        C.SERVICE_RECALCULATE_NOW,
+        {C.ATTR_CONFIG_ENTRY_ID: config_entry.entry_id},
+        blocking=True,
+    )
+
+
+async def test_switch_turns_control_off(hass: HomeAssistant, config_entry, actuators) -> None:
+    config_entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+    switch = _eid(hass, config_entry, "switch", C.KEY_ENABLED)
+    ent = er.async_get(hass).async_get(switch)
+    assert ent.entity_category is None  # a primary control, not a config entity
+    await hass.services.async_call("switch", "turn_off", {"entity_id": switch}, blocking=True)
+    assert hass.states.get(switch).state == "off"
+    mode = _eid(hass, config_entry, "sensor", C.KEY_MODE)
+    assert hass.states.get(mode).state == C.MODE_DISABLED
+    await hass.services.async_call("switch", "turn_on", {"entity_id": switch}, blocking=True)
+    await hass.async_block_till_done()
+    assert hass.states.get(switch).state == "on"
+
+
+async def test_sensor_classes(hass: HomeAssistant, config_entry) -> None:
+    config_entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+    mode = hass.states.get(_eid(hass, config_entry, "sensor", C.KEY_MODE))
+    assert mode.attributes["device_class"] == "enum"
+    assert mode.attributes["options"] == C.MODES
+    power = hass.states.get(_eid(hass, config_entry, "sensor", C.KEY_TARGET_POWER))
+    assert power.attributes["state_class"] == "measurement"
+    assert power.attributes["device_class"] == "power"
+
+
+async def test_unload_sets_zero(hass: HomeAssistant, config_entry, actuators) -> None:
+    config_entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+    actuators.calls.clear()
+    config_entry.runtime_data._last_written = ("discharge", 300.0)
+    assert await hass.config_entries.async_unload(config_entry.entry_id)
+    assert actuators.calls == [("number", 0)]
+
+
+async def test_diagnostics(hass: HomeAssistant, config_entry) -> None:
+    config_entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+    diag = await async_get_config_entry_diagnostics(hass, config_entry)
+    assert diag["entry"]["options"][C.CONF_P_GRID] == FULL_DATA[C.CONF_P_GRID]
+    assert diag["data"][C.KEY_MODE] == "failsafe"
+    assert "controller" in diag["state"]
