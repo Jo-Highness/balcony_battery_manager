@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+from typing import Any
+
+from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import HomeAssistantError
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.balcony_battery_manager import const as C
+from custom_components.balcony_battery_manager import config_flow, const as C
 
 # A complete, schema-valid set of config-flow answers. Entity fields are plain
 # entity-id strings (the selectors validate the id/domain, not existence).
@@ -58,12 +62,89 @@ def auto_enable_custom_integrations(enable_custom_integrations):
     yield
 
 
+def nest(flat: dict[str, Any]) -> dict[str, Any]:
+    """Flat option dict -> sectioned config-flow input."""
+    out: dict[str, Any] = {}
+    for name, fields in config_flow._section_schemas({}).items():
+        keys = [str(marker) for marker in fields]
+        out[name] = {k: flat[k] for k in keys if k in flat}
+    return out
+
+
 @pytest.fixture
 def config_entry() -> MockConfigEntry:
-    """A fully configured v2 entry."""
+    """A fully configured v2.2 entry (settings in options)."""
     return MockConfigEntry(
         domain=C.DOMAIN,
         title="Balcony Battery Manager",
         version=C.CONFIG_VERSION,
-        data=dict(FULL_DATA),
+        minor_version=C.CONFIG_MINOR_VERSION,
+        unique_id=FULL_DATA[C.CONF_TARGET_POWER_NUMBER],
+        data={},
+        options=dict(FULL_DATA),
     )
+
+
+class Actuators:
+    """Fake Solarbank actuator entities with a shared, ordered call log."""
+
+    NUMBER = FULL_DATA[C.CONF_TARGET_POWER_NUMBER]
+    SELECT = FULL_DATA[C.CONF_GRID_FLOW_SELECT]
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        self.hass = hass
+        self.calls: list[tuple[str, Any]] = []
+        self.fail: set[str] = set()
+        self.number_attrs: dict[str, Any] = {
+            "min": 0,
+            "max": 800,
+            "step": 1,
+            "unit_of_measurement": "W",
+        }
+        self.select_attrs: dict[str, Any] = {"options": ["discharge", "charge"]}
+        self.mode_attrs: dict[str, Any] = {"options": ["third_party", "self_consumption"]}
+
+    def setup(self, number: str = "0", select: str = "discharge") -> Actuators:
+        self.hass.states.async_set(self.NUMBER, number, self.number_attrs)
+        self.hass.states.async_set(self.SELECT, select, self.select_attrs)
+        self.hass.states.async_set("select.anker_mode", "self_consumption", self.mode_attrs)
+
+        async def set_value(call: ServiceCall) -> None:
+            self.calls.append(("number", call.data["value"]))
+            if "number" in self.fail:
+                raise HomeAssistantError("number failed")
+            self.hass.states.async_set(
+                call.data["entity_id"], str(call.data["value"]), self.number_attrs
+            )
+
+        async def select_option(call: ServiceCall) -> None:
+            eid = call.data["entity_id"]
+            self.calls.append(("select" if eid == self.SELECT else "mode", call.data["option"]))
+            if "select" in self.fail:
+                raise HomeAssistantError("select failed")
+            attrs = self.select_attrs if eid == self.SELECT else self.mode_attrs
+            self.hass.states.async_set(eid, call.data["option"], attrs)
+
+        self.hass.services.async_register("number", "set_value", set_value)
+        self.hass.services.async_register("select", "select_option", select_option)
+        return self
+
+
+@pytest.fixture
+def actuators(hass: HomeAssistant) -> Actuators:
+    """Fake number/select actuators (registered services + states)."""
+    return Actuators(hass).setup()
+
+
+def set_sensors(hass: HomeAssistant, **values: Any) -> None:
+    """Set the five required input sensors (W / %), overridable per key."""
+    defaults = {
+        C.CONF_P_BATT_DRAW: ("100", "W"),
+        C.CONF_P_ANKER_OUT: ("0", "W"),
+        C.CONF_P_GRID: ("0", "W"),
+        C.CONF_SOC_ANKER: ("50", "%"),
+        C.CONF_P_ANKER_PV: ("300", "W"),
+    }
+    defaults.update(values)
+    for key, (state, unit) in defaults.items():
+        hass.states.async_set(FULL_DATA[key], state, {"unit_of_measurement": unit})

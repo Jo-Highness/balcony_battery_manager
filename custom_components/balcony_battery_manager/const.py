@@ -7,6 +7,9 @@ DOMAIN = "balcony_battery_manager"
 # Config-entry schema version. v1 (Solarbank 3) entries are NOT migratable;
 # async_migrate_entry rejects them so the user re-adds the integration.
 CONFIG_VERSION = 2
+# Minor 2 (v2.2.0): all settings live in entry.options (entry.data is empty) so
+# optional fields can be cleared in the options flow.
+CONFIG_MINOR_VERSION = 2
 
 # ---------------------------------------------------------------------------
 # Config / Options keys
@@ -26,6 +29,12 @@ CONF_GRID_FLOW_SELECT = "grid_flow_select"  # select: charge/discharge direction
 CONF_GRID_FLOW_DISCHARGE = "grid_flow_discharge_option"  # option meaning "discharge"
 CONF_GRID_FLOW_CHARGE = "grid_flow_charge_option"  # option meaning "charge"
 CONF_TARGET_POWER_NUMBER = "target_power_number"  # number: target grid power (W)
+# Optional: the Anker operating-mode select. When set, `control_mode` is selected
+# before the controller commands power and `restore_mode` is selected when the
+# controller is disabled (hands control back to the Anker app/schedule).
+CONF_MODE_SELECT = "mode_select"
+CONF_CONTROL_MODE = "control_mode"
+CONF_RESTORE_MODE = "restore_mode"
 
 # --- Discharge staircase ---
 CONF_DISCHARGE_TH1 = "discharge_threshold_1"  # D above -> at least stage 1
@@ -58,7 +67,8 @@ CONF_INTERVAL = "control_interval"  # coordinator update interval (s)
 CONF_DEADBAND = "deadband"  # min setpoint change to write (W)
 
 # ---------------------------------------------------------------------------
-# Defaults (values the operator gave; all overridable in the UI)
+# Defaults (example values; all overridable in the UI). Capacity and max charge
+# power are EXAMPLES for a multi-battery Solarbank 4 setup - adjust them.
 # ---------------------------------------------------------------------------
 DEFAULT_BATT_DRAW_POSITIVE = True
 DEFAULT_GRID_EXPORT_POSITIVE = True
@@ -93,6 +103,12 @@ DEFAULT_MIN_DISCHARGE_SOC = 10.0
 DEFAULT_INTERVAL = 30
 DEFAULT_DEADBAND = 25.0
 
+# Timeout for a single actuator service call (number/select), seconds.
+SERVICE_TIMEOUT = 15
+# Fallback sunset (local hour) if neither the sun entity nor the astral
+# calculation for the HA home location yields a sunset (e.g. polar day).
+FALLBACK_SUNSET_HOUR = 21
+
 # ---------------------------------------------------------------------------
 # Output / diagnostic sensor keys
 # ---------------------------------------------------------------------------
@@ -101,6 +117,12 @@ KEY_MODE = "mode"
 KEY_TARGET_POWER = "target_power"
 KEY_DEMAND = "corrected_demand"
 KEY_SURPLUS = "surplus"
+
+MODE_DISABLED = "disabled"
+# All states of the mode sensor (logic modes + disabled).
+MODES = ["idle", "discharge", "charge", "grid_support", "failsafe", MODE_DISABLED]
+
+ATTR_CONFIG_ENTRY_ID = "config_entry_id"
 
 # ---------------------------------------------------------------------------
 # Services
