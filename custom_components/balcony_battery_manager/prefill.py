@@ -1,72 +1,105 @@
-"""Best-effort auto-detection of entity defaults for the initial config flow.
+"""Best-effort suggestions for the initial config flow.
 
-Only used to pre-fill suggested values; the user can always override. Matches
-the Anker SOLIX (official integration, Solarbank 4) actor/sensor entities and
-the house-side E3DC/KNX meters by entity-id pattern.
+Only pre-fills a field when exactly ONE entity matches (unambiguous), otherwise
+the field stays empty. Matching prefers device class / unit over names, and
+never guesses sign conventions or the optional main-battery SoC. Everything is
+only a suggestion that the user reviews in the form.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import contextlib
+from typing import Any
 
-from homeassistant.core import HomeAssistant
+from homeassistant.const import ATTR_DEVICE_CLASS, ATTR_UNIT_OF_MEASUREMENT
+from homeassistant.core import HomeAssistant, State
+from homeassistant.helpers import entity_registry as er
 
-from . import const as C
+from . import const as C, units
 
-
-def _find(
-    hass: HomeAssistant, *needles: str, domain: str | None = None, platform_hint: str | None = None
-) -> str | None:
-    """First entity whose id contains all needles (and matches domain)."""
-    for state in hass.states.async_all():
-        eid = state.entity_id
-        if domain and not eid.startswith(domain + "."):
-            continue
-        low = eid.lower()
-        if all(n in low for n in needles):
-            return eid
-    return None
+# Integrations that expose the Solarbank (official + community).
+ANKER_PLATFORMS = {"anker_solix_official", "anker_solix"}
 
 
-def suggest(hass: HomeAssistant) -> dict:
-    """Return a dict of CONF_* -> suggested entity_id / value."""
-    s: dict = {}
-    sb = "solarbank_4"  # official Solarbank-4 entity id fragment
+def _is_power(st: State) -> bool:
+    unit = st.attributes.get(ATTR_UNIT_OF_MEASUREMENT)
+    return bool(unit) and units.factor(unit, units.POWER_TO_W) is not None
 
-    # --- Solarbank (Solix 4) sensors ---
-    s[C.CONF_P_ANKER_OUT] = _find(hass, sb, "ac_output", domain="sensor")
-    s[C.CONF_SOC_ANKER] = _find(hass, sb, "soc", domain="sensor")
-    s[C.CONF_P_ANKER_PV] = _find(hass, sb, "solar_power", domain="sensor")
 
-    # --- Solarbank actors ---
-    s[C.CONF_GRID_FLOW_SELECT] = _find(hass, sb, "grid_flow", domain="select")
-    s[C.CONF_TARGET_POWER_NUMBER] = _find(hass, sb, "target_grid_power", domain="number")
-
-    # --- House side (E3DC via KNX) ---
-    batt = _find(hass, "batterypowerconsumption", domain="sensor")
-    grid = _find(hass, "gridpowerconsumption", domain="sensor")
-    s[C.CONF_P_BATT_DRAW] = batt
-    s[C.CONF_P_GRID] = grid
-    # E3DC uses a NEGATIVE convention (negative = discharge into house / export),
-    # so the "positive =" sign flags must default to False for these sensors.
-    if batt:
-        s[C.CONF_BATT_DRAW_POSITIVE] = False
-    if grid:
-        s[C.CONF_GRID_EXPORT_POSITIVE] = False
-
-    # --- Main-battery SoC (for grid support when the main battery is empty) ---
-    s[C.CONF_MAIN_SOC] = _find(hass, "powerbatterysoc", domain="sensor") or _find(
-        hass, "hauskraftwerk", "soc", domain="sensor"
+def _is_percent(st: State) -> bool:
+    return st.attributes.get(ATTR_UNIT_OF_MEASUREMENT) == "%" or (
+        st.attributes.get(ATTR_DEVICE_CLASS) == "battery"
     )
 
-    # --- Sun ---
-    s[C.CONF_SUN] = "sun.sun" if hass.states.get("sun.sun") else None
 
-    # --- Capacity from the Solarbank battery_capacity sensor value ---
-    cap_eid = _find(hass, sb, "battery_capacity", domain="sensor")
-    if cap_eid:
-        st = hass.states.get(cap_eid)
-        with contextlib.suppress(ValueError, TypeError, AttributeError):
-            s[C.CONF_CAPACITY_KWH] = round(float(st.state), 2)
+def _unique(states: list[State]) -> State | None:
+    return states[0] if len(states) == 1 else None
 
-    return {k: v for k, v in s.items() if v is not None}
+
+def suggest(hass: HomeAssistant) -> dict[str, Any]:
+    """Return a dict of CONF_* -> suggested entity_id / value."""
+    ent_reg = er.async_get(hass)
+
+    def is_anker(st: State) -> bool:
+        entry = ent_reg.async_get(st.entity_id)
+        if entry is not None and entry.platform in ANKER_PLATFORMS:
+            return True
+        return "solarbank" in st.entity_id
+
+    def pick(domain: str, anker: bool, pred: Callable[[State], bool], *tokens: str) -> State | None:
+        matches = [
+            st
+            for st in hass.states.async_all(domain)
+            if is_anker(st) is anker
+            and pred(st)
+            and (not tokens or any(t in st.entity_id for t in tokens))
+        ]
+        return _unique(matches)
+
+    def any_state(_st: State) -> bool:
+        return True
+
+    s: dict[str, Any] = {}
+
+    # --- Solarbank sensors -------------------------------------------------
+    if st := pick("sensor", True, _is_percent, "state_of_charge", "_soc"):
+        s[C.CONF_SOC_ANKER] = st.entity_id
+    if st := pick("sensor", True, _is_power, "solar_power", "pv_power"):
+        s[C.CONF_P_ANKER_PV] = st.entity_id
+    if st := pick("sensor", True, _is_power, "ac_output", "output_power"):
+        s[C.CONF_P_ANKER_OUT] = st.entity_id
+
+    # --- Solarbank actuators ----------------------------------------------
+    if st := pick("select", True, any_state, "grid_flow"):
+        s[C.CONF_GRID_FLOW_SELECT] = st.entity_id
+        options = [str(o) for o in st.attributes.get("options") or []]
+        discharge = [o for o in options if "discharge" in o.lower()]
+        charge = [o for o in options if "charge" in o.lower() and "discharge" not in o.lower()]
+        if len(discharge) == 1:
+            s[C.CONF_GRID_FLOW_DISCHARGE] = discharge[0]
+        if len(charge) == 1:
+            s[C.CONF_GRID_FLOW_CHARGE] = charge[0]
+    if st := pick("number", True, any_state, "target_grid_power"):
+        s[C.CONF_TARGET_POWER_NUMBER] = st.entity_id
+
+    # --- Usable capacity (Wh / kWh) ---------------------------------------
+    if st := pick("sensor", True, any_state, "battery_capacity"):
+        with contextlib.suppress(ValueError, TypeError):
+            kwh = units.convert(
+                float(st.state), st.attributes.get(ATTR_UNIT_OF_MEASUREMENT), units.ENERGY_TO_KWH
+            )
+            if kwh and kwh > 0:
+                s[C.CONF_CAPACITY_KWH] = round(kwh, 2)
+
+    # --- House side (only if exactly one power sensor matches) ------------
+    if st := pick("sensor", False, _is_power, "grid"):
+        s[C.CONF_P_GRID] = st.entity_id
+    if st := pick("sensor", False, _is_power, "battery"):
+        s[C.CONF_P_BATT_DRAW] = st.entity_id
+
+    # --- Sun ---------------------------------------------------------------
+    if hass.states.get("sun.sun"):
+        s[C.CONF_SUN] = "sun.sun"
+
+    return s

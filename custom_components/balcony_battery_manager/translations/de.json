@@ -4,100 +4,310 @@
     "step": {
       "user": {
         "title": "Balcony Battery Manager (Solarbank 4)",
-        "description": "Wähle die Mess- und Stell-Entitäten aus und passe die Regelparameter an. Alle Werte lassen sich später unter Optionen ändern.",
-        "data": {
-          "p_batt_draw": "Hausbezug aus Hauptakku (Sensor)",
-          "batt_draw_positive": "Positiver Wert = Entladung ins Haus",
-          "p_anker_out": "Solarbank-Einspeisung ins Haus (Sensor)",
-          "p_grid": "Netzleistung (Sensor)",
-          "grid_export_positive": "Positiver Wert = Netzeinspeisung",
-          "soc_anker": "Solarbank-Ladezustand (Sensor, %)",
-          "p_anker_pv": "Solarbank-PV-Leistung (Sensor, W)",
-          "sun_entity": "Sonne-Entität (für Sonnenuntergang)",
-          "grid_flow_select": "Fluss-Richtung (Select)",
-          "grid_flow_discharge_option": "Option, die 'Entladen' bedeutet",
-          "grid_flow_charge_option": "Option, die 'Laden' bedeutet",
-          "target_power_number": "Sollwert Netzleistung (Number, W)",
-          "discharge_threshold_1": "Schwelle 1: Bedarf darüber → Stufe 1 (W)",
-          "discharge_threshold_2": "Schwelle 2: Bedarf darüber → Stufe 2 (W)",
-          "discharge_stage_1": "Einspeiseleistung Stufe 1 (W)",
-          "discharge_stage_2": "Einspeiseleistung Stufe 2 (W)",
-          "dwell_minutes": "Verweilzeit — Bedingung muss durchgehend halten (min)",
-          "hysteresis": "Hysterese-Band gegen Flattern (W)",
-          "max_charge": "Maximale Ladeleistung (W)",
-          "surplus_reserve": "Beim Laden gehaltene Einspeise-Reserve (W)",
-          "target_soc": "Ziel-Ladezustand (%)",
-          "capacity_kwh": "Nutzbare Akkukapazität (kWh)",
-          "pv_nominal_w": "Solarbank-PV-Nennleistung (W)",
-          "afternoon_hour": "Nachmittagsgrenze (Stunde)",
-          "afternoon_factor": "Nachmittags-Kappungsfaktor (× Nennleistung)",
-          "control_interval": "Koordinator-Intervall (s)",
-          "deadband": "Minimale Sollwert-Änderung zum Schreiben (W)",
-          "grid_support_enabled": "Netz-Unterstützung bei leerem Hauptakku",
-          "main_soc": "Hauptakku-Ladezustand (Sensor, %)",
-          "main_empty_soc": "Hauptakku gilt als leer bei/unter (%)",
-          "main_empty_soc_hyst": "SoC-Hysterese zum Beenden der Netz-Unterstützung (%)",
-          "grid_support_margin": "Zu haltender Rest-Netzbezug während der Unterstützung (W)",
-          "grid_support_max": "Maximale Einspeisung bei Netz-Unterstützung (W)",
-          "min_discharge_soc": "Solarbank muss über diesem SoC bleiben, um zu entladen (%)"
+        "description": "Vorab: Stelle die Solarbank in deiner Anker-Solix-Integration auf Third-Party Control. Wähle unten 5 Sensoren und 2 Stellglieder; alle Werte lassen sich später ändern. Zahlen sind Beispielwerte.",
+        "sections": {
+          "measurements": {
+            "name": "Messwerte",
+            "description": "Sensoren, die der Regler liest. Leistungssensoren dürfen W, kW oder MW liefern; der Ladezustand muss in % sein.",
+            "data": {
+              "p_batt_draw": "Hauptakku-Leistung",
+              "batt_draw_positive": "Positiv = Entladung ins Haus",
+              "p_grid": "Netzleistung",
+              "grid_export_positive": "Positiv = Einspeisung ins Netz",
+              "p_anker_out": "Solarbank-Ausgang ins Haus",
+              "soc_anker": "Solarbank-Ladezustand",
+              "p_anker_pv": "Solarbank-PV-Leistung",
+              "sun_entity": "Sonnen-Entität"
+            },
+            "data_description": {
+              "p_batt_draw": "Leistung deines Haus-Hauptakkus. Dient zur Rekonstruktion des echten Hausbedarfs.",
+              "batt_draw_positive": "Ausschalten, wenn der Sensor beim Entladen NEGATIV ist (z. B. E3DC).",
+              "p_grid": "Leistung am Netzzähler (Bezug/Einspeisung).",
+              "grid_export_positive": "Ausschalten, wenn der Sensor bei Einspeisung NEGATIV ist.",
+              "p_anker_out": "AC-Leistung, die die Solarbank gerade ins Haus einspeist.",
+              "soc_anker": "Ladezustand der Solarbank in %.",
+              "p_anker_pv": "PV-Leistung an den Solarbank-Eingängen.",
+              "sun_entity": "Liefert den nächsten Sonnenuntergang. Leer: Berechnung aus dem Home-Assistant-Standort (notfalls 21:00)."
+            }
+          },
+          "actuators": {
+            "name": "Solarbank-Stellglieder",
+            "description": "Third-Party-Control-Entitäten deiner Anker-Solix-Integration, auf die der Regler schreibt.",
+            "data": {
+              "grid_flow_select": "Flussrichtung (Select)",
+              "grid_flow_discharge_option": "Option für 'Entladen'",
+              "grid_flow_charge_option": "Option für 'Laden'",
+              "target_power_number": "Sollwert Netzleistung (Number)",
+              "mode_select": "Betriebsmodus-Select (optional)",
+              "control_mode": "Modus während der Regelung (optional)",
+              "restore_mode": "Modus beim Deaktivieren (optional)"
+            },
+            "data_description": {
+              "grid_flow_select": "Select der Solarbank, das zwischen Laden und Entladen umschaltet (Third-Party Control).",
+              "grid_flow_discharge_option": "Exakter Optionswert des Flussrichtungs-Selects für Entladen/Einspeisen.",
+              "grid_flow_charge_option": "Exakter Optionswert des Flussrichtungs-Selects für Laden.",
+              "target_power_number": "Number der Solarbank für den Leistungssollwert (W oder kW). Werte werden auf ihr Min/Max begrenzt.",
+              "mode_select": "Optionales Select für den Betriebsmodus der Solarbank. Nötig, um beim Deaktivieren die Steuerung an die Anker-App zurückzugeben.",
+              "control_mode": "Option des Betriebsmodus-Selects, die Third-Party Control aktiviert. Wird vor dem Vorgeben einer Leistung gesetzt.",
+              "restore_mode": "Option des Betriebsmodus-Selects, die beim Deaktivieren wiederhergestellt wird (z. B. der eigene Modus der Anker-App)."
+            }
+          },
+          "discharge": {
+            "name": "Entlade-Stufen",
+            "description": "Zweistufige Einspeisung, wenn das Haus viel aus dem Hauptakku zieht.",
+            "data": {
+              "discharge_threshold_1": "Schwelle 1",
+              "discharge_threshold_2": "Schwelle 2",
+              "discharge_stage_1": "Einspeisung Stufe 1",
+              "discharge_stage_2": "Einspeisung Stufe 2",
+              "dwell_minutes": "Verweilzeit",
+              "hysteresis": "Hysterese",
+              "min_discharge_soc": "Minimaler Solarbank-SoC"
+            },
+            "data_description": {
+              "discharge_threshold_1": "Korrigierter Bedarf darüber → Stufe 1. Muss kleiner als Schwelle 2 sein.",
+              "discharge_threshold_2": "Korrigierter Bedarf darüber → Stufe 2.",
+              "discharge_stage_1": "Einspeiseleistung der Stufe 1.",
+              "discharge_stage_2": "Einspeiseleistung der Stufe 2. Die Solarbank 4 nimmt hier höchstens ca. 800 W an.",
+              "dwell_minutes": "Eine Bedingung muss so lange durchgehend gelten, bevor die Stufe wechselt.",
+              "hysteresis": "So weit muss der Bedarf unter eine Schwelle fallen, bevor heruntergeschaltet wird.",
+              "min_discharge_soc": "Keine Entladung (Stufen oder Netz-Unterstützung) bei oder unter diesem Solarbank-SoC."
+            }
+          },
+          "charging": {
+            "name": "Vorausschauendes PV-Laden",
+            "description": "Nur aus PV-Überschuss laden, wenn PV allein das Ziel bis Sonnenuntergang nicht erreicht.",
+            "data": {
+              "max_charge": "Maximale Ladeleistung",
+              "surplus_reserve": "Einspeise-Reserve",
+              "target_soc": "Ziel-SoC",
+              "capacity_kwh": "Nutzbare Kapazität",
+              "pv_nominal_w": "PV-Nennleistung",
+              "afternoon_hour": "Nachmittagsgrenze (Stunde)",
+              "afternoon_factor": "Nachmittagsfaktor"
+            },
+            "data_description": {
+              "max_charge": "Obergrenze beim Laden. Beispielwert; zusätzlich auf das Maximum der Number begrenzt.",
+              "surplus_reserve": "Beim Laden gehaltene Einspeisung, damit nie aus Netz oder Hauptakku geladen wird.",
+              "target_soc": "Ladeziel bis Sonnenuntergang.",
+              "capacity_kwh": "Nutzbare Solarbank-Kapazität inkl. Erweiterungsakkus. Beispielwert – eigenen Wert eintragen.",
+              "pv_nominal_w": "PV-Spitzenleistung an der Solarbank, für die Rest-PV-Schätzung.",
+              "afternoon_hour": "Ab dieser lokalen Stunde wird die PV-Schätzung gekappt.",
+              "afternoon_factor": "Nach der Grenze wird die PV-Schätzung auf Nennleistung × Faktor gekappt."
+            }
+          },
+          "grid_support": {
+            "name": "Netz-Unterstützung (Hauptakku leer)",
+            "description": "Haus aus der Solarbank versorgen, wenn der Hauptakku leer ist.",
+            "data": {
+              "grid_support_enabled": "Netz-Unterstützung",
+              "main_soc": "Hauptakku-SoC (optional)",
+              "main_empty_soc": "Hauptakku leer bei",
+              "main_empty_soc_hyst": "Freigabe-Hysterese",
+              "grid_support_margin": "Rest-Netzbezug",
+              "grid_support_max": "Max. Einspeisung Netz-Unterstützung"
+            },
+            "data_description": {
+              "grid_support_enabled": "Haus aus der Solarbank versorgen, solange der Hauptakku leer ist.",
+              "main_soc": "Nötig für die Netz-Unterstützung. Leer lassen, um sie abzuschalten.",
+              "main_empty_soc": "Netz-Unterstützung startet bei oder unter diesem Hauptakku-SoC.",
+              "main_empty_soc_hyst": "Netz-Unterstützung endet, wenn der Hauptakku-SoC so weit über dem Leer-Wert liegt.",
+              "grid_support_margin": "Netzbezug, der bewusst nicht gedeckt wird.",
+              "grid_support_max": "Obergrenze während der Netz-Unterstützung; zusätzlich auf das Maximum der Number begrenzt."
+            }
+          },
+          "general": {
+            "name": "Allgemein",
+            "description": "Regeltakt und Schreib-Totband.",
+            "data": {
+              "control_interval": "Regelintervall",
+              "deadband": "Totband"
+            },
+            "data_description": {
+              "control_interval": "Sekunden zwischen zwei Regelzyklen.",
+              "deadband": "Minimale Sollwert-Änderung, bevor die Number neu geschrieben wird."
+            }
+          }
         }
       }
     },
+    "error": {
+      "threshold_order": "Schwelle 1 muss kleiner als Schwelle 2 sein.",
+      "stage_order": "Einspeisung Stufe 1 darf nicht größer als Stufe 2 sein.",
+      "grid_flow_options_equal": "Die Optionen für 'Entladen' und 'Laden' müssen sich unterscheiden.",
+      "grid_flow_option_missing": "Das Flussrichtungs-Select bietet die eingestellte Option für 'Entladen' oder 'Laden' nicht an.",
+      "mode_select_missing": "Wähle das Betriebsmodus-Select, um einen Regel-/Wiederherstellungsmodus zu nutzen.",
+      "mode_option_required": "Gib einen Modus für die Regelung und/oder für das Deaktivieren an.",
+      "mode_option_missing": "Das Betriebsmodus-Select bietet die eingestellte Option nicht an.",
+      "power_unit_invalid": "Ein Leistungssensor nutzt eine nicht unterstützte Einheit (unterstützt: W, kW, MW).",
+      "soc_unit_invalid": "Ein Ladezustands-Sensor muss % liefern.",
+      "number_unit_invalid": "Die Sollwert-Number muss W oder kW verwenden.",
+      "actuator_in_use": "Diese Stellglieder werden bereits von einem anderen Balcony-Battery-Manager-Eintrag gesteuert."
+    },
     "abort": {
-      "single_instance_allowed": "Bereits konfiguriert."
+      "already_configured": "Diese Solarbank wird bereits vom Balcony Battery Manager gesteuert."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Balcony Battery Manager — Parameter",
-        "description": "Passe Entitäten und Regelparameter an deine lokale Situation an.",
-        "data": {
-          "p_batt_draw": "Hausbezug aus Hauptakku (Sensor)",
-          "batt_draw_positive": "Positiver Wert = Entladung ins Haus",
-          "p_anker_out": "Solarbank-Einspeisung ins Haus (Sensor)",
-          "p_grid": "Netzleistung (Sensor)",
-          "grid_export_positive": "Positiver Wert = Netzeinspeisung",
-          "soc_anker": "Solarbank-Ladezustand (Sensor, %)",
-          "p_anker_pv": "Solarbank-PV-Leistung (Sensor, W)",
-          "sun_entity": "Sonne-Entität (für Sonnenuntergang)",
-          "grid_flow_select": "Fluss-Richtung (Select)",
-          "grid_flow_discharge_option": "Option, die 'Entladen' bedeutet",
-          "grid_flow_charge_option": "Option, die 'Laden' bedeutet",
-          "target_power_number": "Sollwert Netzleistung (Number, W)",
-          "discharge_threshold_1": "Schwelle 1: Bedarf darüber → Stufe 1 (W)",
-          "discharge_threshold_2": "Schwelle 2: Bedarf darüber → Stufe 2 (W)",
-          "discharge_stage_1": "Einspeiseleistung Stufe 1 (W)",
-          "discharge_stage_2": "Einspeiseleistung Stufe 2 (W)",
-          "dwell_minutes": "Verweilzeit — Bedingung muss durchgehend halten (min)",
-          "hysteresis": "Hysterese-Band gegen Flattern (W)",
-          "max_charge": "Maximale Ladeleistung (W)",
-          "surplus_reserve": "Beim Laden gehaltene Einspeise-Reserve (W)",
-          "target_soc": "Ziel-Ladezustand (%)",
-          "capacity_kwh": "Nutzbare Akkukapazität (kWh)",
-          "pv_nominal_w": "Solarbank-PV-Nennleistung (W)",
-          "afternoon_hour": "Nachmittagsgrenze (Stunde)",
-          "afternoon_factor": "Nachmittags-Kappungsfaktor (× Nennleistung)",
-          "control_interval": "Koordinator-Intervall (s)",
-          "deadband": "Minimale Sollwert-Änderung zum Schreiben (W)",
-          "grid_support_enabled": "Netz-Unterstützung bei leerem Hauptakku",
-          "main_soc": "Hauptakku-Ladezustand (Sensor, %)",
-          "main_empty_soc": "Hauptakku gilt als leer bei/unter (%)",
-          "main_empty_soc_hyst": "SoC-Hysterese zum Beenden der Netz-Unterstützung (%)",
-          "grid_support_margin": "Zu haltender Rest-Netzbezug während der Unterstützung (W)",
-          "grid_support_max": "Maximale Einspeisung bei Netz-Unterstützung (W)",
-          "min_discharge_soc": "Solarbank muss über diesem SoC bleiben, um zu entladen (%)"
+        "title": "Balcony Battery Manager – Parameter",
+        "description": "Entitäten und Regelparameter anpassen. Ein geleertes optionales Feld wird entfernt.",
+        "sections": {
+          "measurements": {
+            "name": "Messwerte",
+            "description": "Sensoren, die der Regler liest. Leistungssensoren dürfen W, kW oder MW liefern; der Ladezustand muss in % sein.",
+            "data": {
+              "p_batt_draw": "Hauptakku-Leistung",
+              "batt_draw_positive": "Positiv = Entladung ins Haus",
+              "p_grid": "Netzleistung",
+              "grid_export_positive": "Positiv = Einspeisung ins Netz",
+              "p_anker_out": "Solarbank-Ausgang ins Haus",
+              "soc_anker": "Solarbank-Ladezustand",
+              "p_anker_pv": "Solarbank-PV-Leistung",
+              "sun_entity": "Sonnen-Entität"
+            },
+            "data_description": {
+              "p_batt_draw": "Leistung deines Haus-Hauptakkus. Dient zur Rekonstruktion des echten Hausbedarfs.",
+              "batt_draw_positive": "Ausschalten, wenn der Sensor beim Entladen NEGATIV ist (z. B. E3DC).",
+              "p_grid": "Leistung am Netzzähler (Bezug/Einspeisung).",
+              "grid_export_positive": "Ausschalten, wenn der Sensor bei Einspeisung NEGATIV ist.",
+              "p_anker_out": "AC-Leistung, die die Solarbank gerade ins Haus einspeist.",
+              "soc_anker": "Ladezustand der Solarbank in %.",
+              "p_anker_pv": "PV-Leistung an den Solarbank-Eingängen.",
+              "sun_entity": "Liefert den nächsten Sonnenuntergang. Leer: Berechnung aus dem Home-Assistant-Standort (notfalls 21:00)."
+            }
+          },
+          "actuators": {
+            "name": "Solarbank-Stellglieder",
+            "description": "Third-Party-Control-Entitäten deiner Anker-Solix-Integration, auf die der Regler schreibt.",
+            "data": {
+              "grid_flow_select": "Flussrichtung (Select)",
+              "grid_flow_discharge_option": "Option für 'Entladen'",
+              "grid_flow_charge_option": "Option für 'Laden'",
+              "target_power_number": "Sollwert Netzleistung (Number)",
+              "mode_select": "Betriebsmodus-Select (optional)",
+              "control_mode": "Modus während der Regelung (optional)",
+              "restore_mode": "Modus beim Deaktivieren (optional)"
+            },
+            "data_description": {
+              "grid_flow_select": "Select der Solarbank, das zwischen Laden und Entladen umschaltet (Third-Party Control).",
+              "grid_flow_discharge_option": "Exakter Optionswert des Flussrichtungs-Selects für Entladen/Einspeisen.",
+              "grid_flow_charge_option": "Exakter Optionswert des Flussrichtungs-Selects für Laden.",
+              "target_power_number": "Number der Solarbank für den Leistungssollwert (W oder kW). Werte werden auf ihr Min/Max begrenzt.",
+              "mode_select": "Optionales Select für den Betriebsmodus der Solarbank. Nötig, um beim Deaktivieren die Steuerung an die Anker-App zurückzugeben.",
+              "control_mode": "Option des Betriebsmodus-Selects, die Third-Party Control aktiviert. Wird vor dem Vorgeben einer Leistung gesetzt.",
+              "restore_mode": "Option des Betriebsmodus-Selects, die beim Deaktivieren wiederhergestellt wird (z. B. der eigene Modus der Anker-App)."
+            }
+          },
+          "discharge": {
+            "name": "Entlade-Stufen",
+            "description": "Zweistufige Einspeisung, wenn das Haus viel aus dem Hauptakku zieht.",
+            "data": {
+              "discharge_threshold_1": "Schwelle 1",
+              "discharge_threshold_2": "Schwelle 2",
+              "discharge_stage_1": "Einspeisung Stufe 1",
+              "discharge_stage_2": "Einspeisung Stufe 2",
+              "dwell_minutes": "Verweilzeit",
+              "hysteresis": "Hysterese",
+              "min_discharge_soc": "Minimaler Solarbank-SoC"
+            },
+            "data_description": {
+              "discharge_threshold_1": "Korrigierter Bedarf darüber → Stufe 1. Muss kleiner als Schwelle 2 sein.",
+              "discharge_threshold_2": "Korrigierter Bedarf darüber → Stufe 2.",
+              "discharge_stage_1": "Einspeiseleistung der Stufe 1.",
+              "discharge_stage_2": "Einspeiseleistung der Stufe 2. Die Solarbank 4 nimmt hier höchstens ca. 800 W an.",
+              "dwell_minutes": "Eine Bedingung muss so lange durchgehend gelten, bevor die Stufe wechselt.",
+              "hysteresis": "So weit muss der Bedarf unter eine Schwelle fallen, bevor heruntergeschaltet wird.",
+              "min_discharge_soc": "Keine Entladung (Stufen oder Netz-Unterstützung) bei oder unter diesem Solarbank-SoC."
+            }
+          },
+          "charging": {
+            "name": "Vorausschauendes PV-Laden",
+            "description": "Nur aus PV-Überschuss laden, wenn PV allein das Ziel bis Sonnenuntergang nicht erreicht.",
+            "data": {
+              "max_charge": "Maximale Ladeleistung",
+              "surplus_reserve": "Einspeise-Reserve",
+              "target_soc": "Ziel-SoC",
+              "capacity_kwh": "Nutzbare Kapazität",
+              "pv_nominal_w": "PV-Nennleistung",
+              "afternoon_hour": "Nachmittagsgrenze (Stunde)",
+              "afternoon_factor": "Nachmittagsfaktor"
+            },
+            "data_description": {
+              "max_charge": "Obergrenze beim Laden. Beispielwert; zusätzlich auf das Maximum der Number begrenzt.",
+              "surplus_reserve": "Beim Laden gehaltene Einspeisung, damit nie aus Netz oder Hauptakku geladen wird.",
+              "target_soc": "Ladeziel bis Sonnenuntergang.",
+              "capacity_kwh": "Nutzbare Solarbank-Kapazität inkl. Erweiterungsakkus. Beispielwert – eigenen Wert eintragen.",
+              "pv_nominal_w": "PV-Spitzenleistung an der Solarbank, für die Rest-PV-Schätzung.",
+              "afternoon_hour": "Ab dieser lokalen Stunde wird die PV-Schätzung gekappt.",
+              "afternoon_factor": "Nach der Grenze wird die PV-Schätzung auf Nennleistung × Faktor gekappt."
+            }
+          },
+          "grid_support": {
+            "name": "Netz-Unterstützung (Hauptakku leer)",
+            "description": "Haus aus der Solarbank versorgen, wenn der Hauptakku leer ist.",
+            "data": {
+              "grid_support_enabled": "Netz-Unterstützung",
+              "main_soc": "Hauptakku-SoC (optional)",
+              "main_empty_soc": "Hauptakku leer bei",
+              "main_empty_soc_hyst": "Freigabe-Hysterese",
+              "grid_support_margin": "Rest-Netzbezug",
+              "grid_support_max": "Max. Einspeisung Netz-Unterstützung"
+            },
+            "data_description": {
+              "grid_support_enabled": "Haus aus der Solarbank versorgen, solange der Hauptakku leer ist.",
+              "main_soc": "Nötig für die Netz-Unterstützung. Leer lassen, um sie abzuschalten.",
+              "main_empty_soc": "Netz-Unterstützung startet bei oder unter diesem Hauptakku-SoC.",
+              "main_empty_soc_hyst": "Netz-Unterstützung endet, wenn der Hauptakku-SoC so weit über dem Leer-Wert liegt.",
+              "grid_support_margin": "Netzbezug, der bewusst nicht gedeckt wird.",
+              "grid_support_max": "Obergrenze während der Netz-Unterstützung; zusätzlich auf das Maximum der Number begrenzt."
+            }
+          },
+          "general": {
+            "name": "Allgemein",
+            "description": "Regeltakt und Schreib-Totband.",
+            "data": {
+              "control_interval": "Regelintervall",
+              "deadband": "Totband"
+            },
+            "data_description": {
+              "control_interval": "Sekunden zwischen zwei Regelzyklen.",
+              "deadband": "Minimale Sollwert-Änderung, bevor die Number neu geschrieben wird."
+            }
+          }
         }
       }
+    },
+    "error": {
+      "threshold_order": "Schwelle 1 muss kleiner als Schwelle 2 sein.",
+      "stage_order": "Einspeisung Stufe 1 darf nicht größer als Stufe 2 sein.",
+      "grid_flow_options_equal": "Die Optionen für 'Entladen' und 'Laden' müssen sich unterscheiden.",
+      "grid_flow_option_missing": "Das Flussrichtungs-Select bietet die eingestellte Option für 'Entladen' oder 'Laden' nicht an.",
+      "mode_select_missing": "Wähle das Betriebsmodus-Select, um einen Regel-/Wiederherstellungsmodus zu nutzen.",
+      "mode_option_required": "Gib einen Modus für die Regelung und/oder für das Deaktivieren an.",
+      "mode_option_missing": "Das Betriebsmodus-Select bietet die eingestellte Option nicht an.",
+      "power_unit_invalid": "Ein Leistungssensor nutzt eine nicht unterstützte Einheit (unterstützt: W, kW, MW).",
+      "soc_unit_invalid": "Ein Ladezustands-Sensor muss % liefern.",
+      "number_unit_invalid": "Die Sollwert-Number muss W oder kW verwenden.",
+      "actuator_in_use": "Diese Stellglieder werden bereits von einem anderen Balcony-Battery-Manager-Eintrag gesteuert."
     }
   },
   "entity": {
     "sensor": {
       "mode": {
-        "name": "Modus"
+        "name": "Modus",
+        "state": {
+          "idle": "Leerlauf",
+          "discharge": "Entladen",
+          "charge": "Laden",
+          "grid_support": "Netz-Unterstützung",
+          "failsafe": "Fail-safe",
+          "disabled": "Deaktiviert"
+        }
       },
       "target_power": {
-        "name": "Sollwert Leistung"
+        "name": "Sollleistung"
       },
       "corrected_demand": {
         "name": "Korrigierter Bedarf"
@@ -112,18 +322,41 @@
       }
     }
   },
+  "exceptions": {
+    "entry_not_loaded": {
+      "message": "Der Konfigurationseintrag {entry_id} ist kein geladener Balcony-Battery-Manager-Eintrag."
+    }
+  },
   "services": {
     "enable": {
       "name": "Aktivieren",
-      "description": "Regelung aktivieren."
+      "description": "Regelung aktivieren und sofort einen Regelzyklus ausführen.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Konfigurationseintrag",
+          "description": "Nur diesen Eintrag ansprechen. Leer lassen für alle Einträge."
+        }
+      }
     },
     "disable": {
       "name": "Deaktivieren",
-      "description": "Regelung deaktivieren und Einspeisung sowie Laden auf 0 setzen."
+      "description": "Regelung deaktivieren: Sollleistung auf 0 W setzen und, falls eingestellt, den Anker-Betriebsmodus wiederherstellen.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Konfigurationseintrag",
+          "description": "Nur diesen Eintrag ansprechen. Leer lassen für alle Einträge."
+        }
+      }
     },
     "recalculate_now": {
       "name": "Jetzt neu berechnen",
-      "description": "Sofort einen Regelzyklus auslösen."
+      "description": "Sofort einen Regelzyklus außerhalb des Intervalls ausführen.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Konfigurationseintrag",
+          "description": "Nur diesen Eintrag ansprechen. Leer lassen für alle Einträge."
+        }
+      }
     }
   }
 }

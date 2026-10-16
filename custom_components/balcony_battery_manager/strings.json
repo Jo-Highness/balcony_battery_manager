@@ -4,97 +4,307 @@
     "step": {
       "user": {
         "title": "Balcony Battery Manager (Solarbank 4)",
-        "description": "Select the measurement and actor entities and tune the control parameters. All values can be changed later under Options.",
-        "data": {
-          "p_batt_draw": "Main-battery draw into house (sensor)",
-          "batt_draw_positive": "Positive value = discharge into house",
-          "p_anker_out": "Solarbank feed-in to house (sensor)",
-          "p_grid": "Grid power (sensor)",
-          "grid_export_positive": "Positive value = export to grid",
-          "soc_anker": "Solarbank state of charge (sensor, %)",
-          "p_anker_pv": "Solarbank PV power (sensor, W)",
-          "sun_entity": "Sun entity (for sunset)",
-          "grid_flow_select": "Grid-flow direction (select)",
-          "grid_flow_discharge_option": "Option that means 'discharge'",
-          "grid_flow_charge_option": "Option that means 'charge'",
-          "target_power_number": "Target grid power (number, W)",
-          "discharge_threshold_1": "Threshold 1: demand above this feeds stage 1 (W)",
-          "discharge_threshold_2": "Threshold 2: demand above this feeds stage 2 (W)",
-          "discharge_stage_1": "Feed-in power for stage 1 (W)",
-          "discharge_stage_2": "Feed-in power for stage 2 (W)",
-          "dwell_minutes": "Dwell time — condition must hold continuously (min)",
-          "hysteresis": "Hysteresis band against flapping (W)",
-          "max_charge": "Maximum charge power (W)",
-          "surplus_reserve": "Export reserve kept while charging (W)",
-          "target_soc": "Target state of charge (%)",
-          "capacity_kwh": "Usable battery capacity (kWh)",
-          "pv_nominal_w": "Solarbank PV nominal power (W)",
-          "afternoon_hour": "Afternoon cap boundary (hour of day)",
-          "afternoon_factor": "Afternoon cap factor (× nominal)",
-          "control_interval": "Coordinator update interval (s)",
-          "deadband": "Minimum setpoint change to write (W)",
-          "grid_support_enabled": "Grid support when the main battery is empty",
-          "main_soc": "Main-battery state of charge (sensor, %)",
-          "main_empty_soc": "Main battery counts as empty at/below (%)",
-          "main_empty_soc_hyst": "SoC hysteresis to release grid support (%)",
-          "grid_support_margin": "Residual grid import to keep while supporting (W)",
-          "grid_support_max": "Maximum feed-in during grid support (W)",
-          "min_discharge_soc": "Solarbank must stay above this SoC to discharge (%)"
+        "description": "Before you start: set the Solarbank to third-party control in your Anker Solix integration. Select 5 sensors and 2 actuators below; all values can be changed later. Numbers are example defaults.",
+        "sections": {
+          "measurements": {
+            "name": "Measurements",
+            "description": "Sensors the controller reads. Power sensors may report W, kW or MW; state of charge must be in %.",
+            "data": {
+              "p_batt_draw": "Main-battery power",
+              "batt_draw_positive": "Positive = discharge into house",
+              "p_grid": "Grid power",
+              "grid_export_positive": "Positive = export to grid",
+              "p_anker_out": "Solarbank output to house",
+              "soc_anker": "Solarbank state of charge",
+              "p_anker_pv": "Solarbank PV power",
+              "sun_entity": "Sun entity"
+            },
+            "data_description": {
+              "p_batt_draw": "Power of your main house battery. Used to reconstruct the real house demand.",
+              "batt_draw_positive": "Turn off if this sensor is NEGATIVE while the main battery discharges (e.g. E3DC).",
+              "p_grid": "Grid meter power (import/export).",
+              "grid_export_positive": "Turn off if this sensor is NEGATIVE while exporting.",
+              "p_anker_out": "AC power the Solarbank currently feeds into the house.",
+              "soc_anker": "Solarbank SoC in %.",
+              "p_anker_pv": "PV power at the Solarbank inputs.",
+              "sun_entity": "Provides the next sunset. If empty, sunset is calculated from the Home Assistant location (last resort: 21:00)."
+            }
+          },
+          "actuators": {
+            "name": "Solarbank actuators",
+            "description": "Third-party-control entities of your Anker Solix integration that the controller writes to.",
+            "data": {
+              "grid_flow_select": "Grid-flow direction (select)",
+              "grid_flow_discharge_option": "Option for 'discharge'",
+              "grid_flow_charge_option": "Option for 'charge'",
+              "target_power_number": "Target grid power (number)",
+              "mode_select": "Operating-mode select (optional)",
+              "control_mode": "Mode while controlling (optional)",
+              "restore_mode": "Mode when disabled (optional)"
+            },
+            "data_description": {
+              "grid_flow_select": "Select of the Solarbank that switches between charging and discharging (third-party control).",
+              "grid_flow_discharge_option": "Exact option value of the grid-flow select that means discharge/feed-in.",
+              "grid_flow_charge_option": "Exact option value of the grid-flow select that means charging.",
+              "target_power_number": "Number of the Solarbank that takes the power setpoint (W or kW). Values are clamped to its min/max.",
+              "mode_select": "Optional select of the Solarbank's operating mode. Needed to hand control back to the Anker app when the controller is disabled.",
+              "control_mode": "Option of the operating-mode select that enables third-party control. Selected before power is commanded.",
+              "restore_mode": "Option of the operating-mode select that is restored when the controller is disabled (e.g. the Anker app's own mode)."
+            }
+          },
+          "discharge": {
+            "name": "Discharge staircase",
+            "description": "Two-step feed-in support when the house draws a lot from the main battery.",
+            "data": {
+              "discharge_threshold_1": "Threshold 1",
+              "discharge_threshold_2": "Threshold 2",
+              "discharge_stage_1": "Stage 1 feed-in",
+              "discharge_stage_2": "Stage 2 feed-in",
+              "dwell_minutes": "Dwell time",
+              "hysteresis": "Hysteresis",
+              "min_discharge_soc": "Minimum Solarbank SoC"
+            },
+            "data_description": {
+              "discharge_threshold_1": "Corrected demand above this feeds stage 1. Must be lower than threshold 2.",
+              "discharge_threshold_2": "Corrected demand above this feeds stage 2.",
+              "discharge_stage_1": "Feed-in power of stage 1.",
+              "discharge_stage_2": "Feed-in power of stage 2. The Solarbank 4 accepts at most about 800 W here.",
+              "dwell_minutes": "A condition must hold continuously this long before the stage changes.",
+              "hysteresis": "Demand must drop this far below a threshold before stepping down.",
+              "min_discharge_soc": "No discharge (staircase or grid support) at or below this Solarbank SoC."
+            }
+          },
+          "charging": {
+            "name": "Predictive PV charging",
+            "description": "Charge from PV surplus only if PV alone will not reach the target by sunset.",
+            "data": {
+              "max_charge": "Maximum charge power",
+              "surplus_reserve": "Export reserve",
+              "target_soc": "Target SoC",
+              "capacity_kwh": "Usable capacity",
+              "pv_nominal_w": "PV nominal power",
+              "afternoon_hour": "Afternoon boundary (hour)",
+              "afternoon_factor": "Afternoon factor"
+            },
+            "data_description": {
+              "max_charge": "Upper limit for charging. Example default; also capped at the target number's maximum.",
+              "surplus_reserve": "Export kept while charging, so charging never pulls from the grid or main battery.",
+              "target_soc": "Charge goal by sunset.",
+              "capacity_kwh": "Usable Solarbank capacity incl. expansion batteries. Example default - set your own value.",
+              "pv_nominal_w": "Peak PV power at the Solarbank, used for the remaining-PV estimate.",
+              "afternoon_hour": "From this local hour the PV estimate is capped.",
+              "afternoon_factor": "After the boundary the PV estimate is capped at nominal power x this factor."
+            }
+          },
+          "grid_support": {
+            "name": "Grid support (main battery empty)",
+            "description": "Cover the house from the Solarbank when the main battery is empty.",
+            "data": {
+              "grid_support_enabled": "Grid support",
+              "main_soc": "Main-battery SoC (optional)",
+              "main_empty_soc": "Main battery empty at",
+              "main_empty_soc_hyst": "Release hysteresis",
+              "grid_support_margin": "Residual grid import",
+              "grid_support_max": "Maximum grid-support feed-in"
+            },
+            "data_description": {
+              "grid_support_enabled": "Cover the house from the Solarbank while the main battery is empty.",
+              "main_soc": "Required for grid support. Leave empty to disable it.",
+              "main_empty_soc": "Grid support starts at or below this main-battery SoC.",
+              "main_empty_soc_hyst": "Grid support ends once the main-battery SoC is this far above the empty level.",
+              "grid_support_margin": "Grid import that is deliberately left uncovered.",
+              "grid_support_max": "Upper limit during grid support; also capped at the target number's maximum."
+            }
+          },
+          "general": {
+            "name": "General",
+            "description": "Control loop timing and write deadband.",
+            "data": {
+              "control_interval": "Control interval",
+              "deadband": "Deadband"
+            },
+            "data_description": {
+              "control_interval": "Seconds between control cycles.",
+              "deadband": "Minimum setpoint change before the target number is rewritten."
+            }
+          }
         }
       }
     },
+    "error": {
+      "threshold_order": "Threshold 1 must be lower than threshold 2.",
+      "stage_order": "Stage 1 feed-in must not be higher than stage 2.",
+      "grid_flow_options_equal": "The 'discharge' and 'charge' options must differ.",
+      "grid_flow_option_missing": "The grid-flow select does not offer the configured 'discharge' or 'charge' option.",
+      "mode_select_missing": "Select the operating-mode entity to use a control/restore mode.",
+      "mode_option_required": "Enter a mode while controlling and/or a mode when disabled.",
+      "mode_option_missing": "The operating-mode select does not offer the configured option.",
+      "power_unit_invalid": "A power sensor uses an unsupported unit (supported: W, kW, MW).",
+      "soc_unit_invalid": "A state-of-charge sensor must report %.",
+      "number_unit_invalid": "The target power number must use W or kW.",
+      "actuator_in_use": "These actuators are already controlled by another Balcony Battery Manager entry."
+    },
     "abort": {
-      "single_instance_allowed": "Already configured."
+      "already_configured": "This Solarbank is already controlled by Balcony Battery Manager."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Balcony Battery Manager — parameters",
-        "description": "Adjust entities and control parameters to your local situation.",
-        "data": {
-          "p_batt_draw": "Main-battery draw into house (sensor)",
-          "batt_draw_positive": "Positive value = discharge into house",
-          "p_anker_out": "Solarbank feed-in to house (sensor)",
-          "p_grid": "Grid power (sensor)",
-          "grid_export_positive": "Positive value = export to grid",
-          "soc_anker": "Solarbank state of charge (sensor, %)",
-          "p_anker_pv": "Solarbank PV power (sensor, W)",
-          "sun_entity": "Sun entity (for sunset)",
-          "grid_flow_select": "Grid-flow direction (select)",
-          "grid_flow_discharge_option": "Option that means 'discharge'",
-          "grid_flow_charge_option": "Option that means 'charge'",
-          "target_power_number": "Target grid power (number, W)",
-          "discharge_threshold_1": "Threshold 1: demand above this feeds stage 1 (W)",
-          "discharge_threshold_2": "Threshold 2: demand above this feeds stage 2 (W)",
-          "discharge_stage_1": "Feed-in power for stage 1 (W)",
-          "discharge_stage_2": "Feed-in power for stage 2 (W)",
-          "dwell_minutes": "Dwell time — condition must hold continuously (min)",
-          "hysteresis": "Hysteresis band against flapping (W)",
-          "max_charge": "Maximum charge power (W)",
-          "surplus_reserve": "Export reserve kept while charging (W)",
-          "target_soc": "Target state of charge (%)",
-          "capacity_kwh": "Usable battery capacity (kWh)",
-          "pv_nominal_w": "Solarbank PV nominal power (W)",
-          "afternoon_hour": "Afternoon cap boundary (hour of day)",
-          "afternoon_factor": "Afternoon cap factor (× nominal)",
-          "control_interval": "Coordinator update interval (s)",
-          "deadband": "Minimum setpoint change to write (W)",
-          "grid_support_enabled": "Grid support when the main battery is empty",
-          "main_soc": "Main-battery state of charge (sensor, %)",
-          "main_empty_soc": "Main battery counts as empty at/below (%)",
-          "main_empty_soc_hyst": "SoC hysteresis to release grid support (%)",
-          "grid_support_margin": "Residual grid import to keep while supporting (W)",
-          "grid_support_max": "Maximum feed-in during grid support (W)",
-          "min_discharge_soc": "Solarbank must stay above this SoC to discharge (%)"
+        "title": "Balcony Battery Manager - parameters",
+        "description": "Adjust entities and control parameters. Clearing an optional field removes it.",
+        "sections": {
+          "measurements": {
+            "name": "Measurements",
+            "description": "Sensors the controller reads. Power sensors may report W, kW or MW; state of charge must be in %.",
+            "data": {
+              "p_batt_draw": "Main-battery power",
+              "batt_draw_positive": "Positive = discharge into house",
+              "p_grid": "Grid power",
+              "grid_export_positive": "Positive = export to grid",
+              "p_anker_out": "Solarbank output to house",
+              "soc_anker": "Solarbank state of charge",
+              "p_anker_pv": "Solarbank PV power",
+              "sun_entity": "Sun entity"
+            },
+            "data_description": {
+              "p_batt_draw": "Power of your main house battery. Used to reconstruct the real house demand.",
+              "batt_draw_positive": "Turn off if this sensor is NEGATIVE while the main battery discharges (e.g. E3DC).",
+              "p_grid": "Grid meter power (import/export).",
+              "grid_export_positive": "Turn off if this sensor is NEGATIVE while exporting.",
+              "p_anker_out": "AC power the Solarbank currently feeds into the house.",
+              "soc_anker": "Solarbank SoC in %.",
+              "p_anker_pv": "PV power at the Solarbank inputs.",
+              "sun_entity": "Provides the next sunset. If empty, sunset is calculated from the Home Assistant location (last resort: 21:00)."
+            }
+          },
+          "actuators": {
+            "name": "Solarbank actuators",
+            "description": "Third-party-control entities of your Anker Solix integration that the controller writes to.",
+            "data": {
+              "grid_flow_select": "Grid-flow direction (select)",
+              "grid_flow_discharge_option": "Option for 'discharge'",
+              "grid_flow_charge_option": "Option for 'charge'",
+              "target_power_number": "Target grid power (number)",
+              "mode_select": "Operating-mode select (optional)",
+              "control_mode": "Mode while controlling (optional)",
+              "restore_mode": "Mode when disabled (optional)"
+            },
+            "data_description": {
+              "grid_flow_select": "Select of the Solarbank that switches between charging and discharging (third-party control).",
+              "grid_flow_discharge_option": "Exact option value of the grid-flow select that means discharge/feed-in.",
+              "grid_flow_charge_option": "Exact option value of the grid-flow select that means charging.",
+              "target_power_number": "Number of the Solarbank that takes the power setpoint (W or kW). Values are clamped to its min/max.",
+              "mode_select": "Optional select of the Solarbank's operating mode. Needed to hand control back to the Anker app when the controller is disabled.",
+              "control_mode": "Option of the operating-mode select that enables third-party control. Selected before power is commanded.",
+              "restore_mode": "Option of the operating-mode select that is restored when the controller is disabled (e.g. the Anker app's own mode)."
+            }
+          },
+          "discharge": {
+            "name": "Discharge staircase",
+            "description": "Two-step feed-in support when the house draws a lot from the main battery.",
+            "data": {
+              "discharge_threshold_1": "Threshold 1",
+              "discharge_threshold_2": "Threshold 2",
+              "discharge_stage_1": "Stage 1 feed-in",
+              "discharge_stage_2": "Stage 2 feed-in",
+              "dwell_minutes": "Dwell time",
+              "hysteresis": "Hysteresis",
+              "min_discharge_soc": "Minimum Solarbank SoC"
+            },
+            "data_description": {
+              "discharge_threshold_1": "Corrected demand above this feeds stage 1. Must be lower than threshold 2.",
+              "discharge_threshold_2": "Corrected demand above this feeds stage 2.",
+              "discharge_stage_1": "Feed-in power of stage 1.",
+              "discharge_stage_2": "Feed-in power of stage 2. The Solarbank 4 accepts at most about 800 W here.",
+              "dwell_minutes": "A condition must hold continuously this long before the stage changes.",
+              "hysteresis": "Demand must drop this far below a threshold before stepping down.",
+              "min_discharge_soc": "No discharge (staircase or grid support) at or below this Solarbank SoC."
+            }
+          },
+          "charging": {
+            "name": "Predictive PV charging",
+            "description": "Charge from PV surplus only if PV alone will not reach the target by sunset.",
+            "data": {
+              "max_charge": "Maximum charge power",
+              "surplus_reserve": "Export reserve",
+              "target_soc": "Target SoC",
+              "capacity_kwh": "Usable capacity",
+              "pv_nominal_w": "PV nominal power",
+              "afternoon_hour": "Afternoon boundary (hour)",
+              "afternoon_factor": "Afternoon factor"
+            },
+            "data_description": {
+              "max_charge": "Upper limit for charging. Example default; also capped at the target number's maximum.",
+              "surplus_reserve": "Export kept while charging, so charging never pulls from the grid or main battery.",
+              "target_soc": "Charge goal by sunset.",
+              "capacity_kwh": "Usable Solarbank capacity incl. expansion batteries. Example default - set your own value.",
+              "pv_nominal_w": "Peak PV power at the Solarbank, used for the remaining-PV estimate.",
+              "afternoon_hour": "From this local hour the PV estimate is capped.",
+              "afternoon_factor": "After the boundary the PV estimate is capped at nominal power x this factor."
+            }
+          },
+          "grid_support": {
+            "name": "Grid support (main battery empty)",
+            "description": "Cover the house from the Solarbank when the main battery is empty.",
+            "data": {
+              "grid_support_enabled": "Grid support",
+              "main_soc": "Main-battery SoC (optional)",
+              "main_empty_soc": "Main battery empty at",
+              "main_empty_soc_hyst": "Release hysteresis",
+              "grid_support_margin": "Residual grid import",
+              "grid_support_max": "Maximum grid-support feed-in"
+            },
+            "data_description": {
+              "grid_support_enabled": "Cover the house from the Solarbank while the main battery is empty.",
+              "main_soc": "Required for grid support. Leave empty to disable it.",
+              "main_empty_soc": "Grid support starts at or below this main-battery SoC.",
+              "main_empty_soc_hyst": "Grid support ends once the main-battery SoC is this far above the empty level.",
+              "grid_support_margin": "Grid import that is deliberately left uncovered.",
+              "grid_support_max": "Upper limit during grid support; also capped at the target number's maximum."
+            }
+          },
+          "general": {
+            "name": "General",
+            "description": "Control loop timing and write deadband.",
+            "data": {
+              "control_interval": "Control interval",
+              "deadband": "Deadband"
+            },
+            "data_description": {
+              "control_interval": "Seconds between control cycles.",
+              "deadband": "Minimum setpoint change before the target number is rewritten."
+            }
+          }
         }
       }
+    },
+    "error": {
+      "threshold_order": "Threshold 1 must be lower than threshold 2.",
+      "stage_order": "Stage 1 feed-in must not be higher than stage 2.",
+      "grid_flow_options_equal": "The 'discharge' and 'charge' options must differ.",
+      "grid_flow_option_missing": "The grid-flow select does not offer the configured 'discharge' or 'charge' option.",
+      "mode_select_missing": "Select the operating-mode entity to use a control/restore mode.",
+      "mode_option_required": "Enter a mode while controlling and/or a mode when disabled.",
+      "mode_option_missing": "The operating-mode select does not offer the configured option.",
+      "power_unit_invalid": "A power sensor uses an unsupported unit (supported: W, kW, MW).",
+      "soc_unit_invalid": "A state-of-charge sensor must report %.",
+      "number_unit_invalid": "The target power number must use W or kW.",
+      "actuator_in_use": "These actuators are already controlled by another Balcony Battery Manager entry."
     }
   },
   "entity": {
     "sensor": {
       "mode": {
-        "name": "Mode"
+        "name": "Mode",
+        "state": {
+          "idle": "Idle",
+          "discharge": "Discharging",
+          "charge": "Charging",
+          "grid_support": "Grid support",
+          "failsafe": "Fail-safe",
+          "disabled": "Disabled"
+        }
       },
       "target_power": {
         "name": "Target power"
@@ -112,18 +322,41 @@
       }
     }
   },
+  "exceptions": {
+    "entry_not_loaded": {
+      "message": "Config entry {entry_id} is not a loaded Balcony Battery Manager entry."
+    }
+  },
   "services": {
     "enable": {
       "name": "Enable",
-      "description": "Enable the control loop."
+      "description": "Enable the control loop and run one control cycle immediately.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Config entry",
+          "description": "Only act on this entry. Leave empty for all entries."
+        }
+      }
     },
     "disable": {
       "name": "Disable",
-      "description": "Disable the control loop and set feed-in and charging to 0."
+      "description": "Disable the control loop: set the target power to 0 W and, if configured, restore the Anker operating mode.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Config entry",
+          "description": "Only act on this entry. Leave empty for all entries."
+        }
+      }
     },
     "recalculate_now": {
       "name": "Recalculate now",
-      "description": "Trigger an immediate control cycle."
+      "description": "Run a control cycle immediately, outside the regular interval.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Config entry",
+          "description": "Only act on this entry. Leave empty for all entries."
+        }
+      }
     }
   }
 }
