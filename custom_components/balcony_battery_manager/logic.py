@@ -246,7 +246,8 @@ def decide(
     """Single coordination cycle: pick exactly one mode and its setpoint.
 
     Priority: grid support (main battery empty) > discharge staircase (high
-    demand) > charging > idle. All setpoints are clamped to the device limits
+    demand) > charging > idle. No discharge mode runs while the Solarbank SoC
+    is at/below ``min_discharge_soc``. All setpoints are clamped to the device limits
     by the caller. `cfg` carries the tunable parameters (see const.DEFAULTS).
     """
     demand = corrected_demand(p_batt_draw, p_anker_out)
@@ -299,15 +300,23 @@ def decide(
     state.last_support_w = 0.0
 
     # --- Discharge staircase (evaluated against corrected demand D) ---
-    step_w = update_discharge(
-        state.discharge,
-        demand,
-        dt_s,
-        steps=cfg["discharge_steps"],
-        thresholds=cfg["discharge_thresholds"],
-        hysteresis=cfg["hysteresis"],
-        dwell_s=cfg["dwell_s"],
-    )
+    # The Solarbank must stay above its minimum SoC in EVERY discharge mode, not
+    # only in grid support. At/below it the staircase is reset (timers too), so
+    # after recovering it has to qualify again for the full dwell time.
+    soc_ok = soc > cfg["min_discharge_soc"]
+    if soc_ok:
+        step_w = update_discharge(
+            state.discharge,
+            demand,
+            dt_s,
+            steps=cfg["discharge_steps"],
+            thresholds=cfg["discharge_thresholds"],
+            hysteresis=cfg["hysteresis"],
+            dwell_s=cfg["dwell_s"],
+        )
+    else:
+        state.discharge = DischargeState()
+        step_w = 0.0
 
     if step_w > 0:
         # Discharging wins; do not accumulate charge power.
@@ -317,6 +326,7 @@ def decide(
             grid_flow="discharge",
             target_power=step_w,
             demand=demand,
+            surplus=grid_export,
             reason=f"D={demand:.0f}W -> Stufe {step_w:.0f}W",
         )
 
@@ -376,6 +386,22 @@ def decide(
         rest_pv_wh=rest_wh,
         reason="Leerlauf (PV deckt Bedarf)",
     )
+
+
+def sync_applied(state: ControllerState, mode: str, applied_w: float) -> None:
+    """Anti-wind-up: make the integrators track what the device really got.
+
+    The charge and grid-support loops integrate from their previous setpoint.
+    If that setpoint was clamped by the device, skipped by the deadband or the
+    write failed, the device did not change and the measured error stays the
+    same, so the internal value would keep running away (integrator wind-up).
+    Re-anchoring the integrator on the power actually in effect freezes it
+    while nothing is written and caps it at the effective device limit.
+    """
+    if mode == MODE_CHARGE:
+        state.last_charge_w = max(0.0, applied_w)
+    elif mode == MODE_GRID_SUPPORT:
+        state.last_support_w = max(0.0, applied_w)
 
 
 def failsafe_decision(demand: float = 0.0) -> Decision:

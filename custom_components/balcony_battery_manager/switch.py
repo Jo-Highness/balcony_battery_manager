@@ -5,37 +5,34 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.components.switch import SwitchEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import EntityCategory
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import DOMAIN, KEY_ENABLED
-from .coordinator import BalconyBatteryCoordinator
+from .const import KEY_ENABLED
+from .coordinator import BalconyBatteryConfigEntry, BalconyBatteryCoordinator
 from .entity import BalconyBatteryEntity
+
+PARALLEL_UPDATES = 0
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    entry: BalconyBatteryConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up the Balcony Battery Manager master switch."""
-    coordinator: BalconyBatteryCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities([BalconyMasterSwitch(coordinator)])
+    async_add_entities([BalconyMasterSwitch(entry.runtime_data)])
 
 
 class BalconyMasterSwitch(BalconyBatteryEntity, SwitchEntity):
-    """Master switch enabling/disabling the control loop."""
-
-    _attr_entity_category = EntityCategory.CONFIG
+    """Master switch enabling/disabling the control loop (a primary control)."""
 
     def __init__(self, coordinator: BalconyBatteryCoordinator) -> None:
         super().__init__(coordinator, KEY_ENABLED)
 
     @property
     def is_on(self) -> bool:
-        return self.coordinator.data["enabled"]
+        return self.coordinator.enabled
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         await self.coordinator.async_enable()

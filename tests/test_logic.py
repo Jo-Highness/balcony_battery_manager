@@ -490,3 +490,85 @@ def test_clamp():
     assert logic.clamp(1200, 0, 800) == 800
     assert logic.clamp(-5, 0, 800) == 0
     assert logic.clamp(400, 0, 800) == 400
+
+
+# ---------------- minimum Solarbank SoC / anti-wind-up ----------------
+
+
+def _decide_high_demand(st, soc):
+    now = datetime(2026, 7, 1, 20, 0, tzinfo=UTC)
+    return logic.decide(
+        st,
+        now=now,
+        sunset=now + timedelta(minutes=30),
+        p_batt_draw=1700,
+        p_anker_out=0,
+        grid_export=0,
+        soc=soc,
+        p_anker_pv=0,
+        dt_s=600,
+        cfg=CFG,
+    )
+
+
+def test_staircase_blocked_at_min_soc():
+    st = _state()
+    st.discharge.step_index = 2  # was feeding 800 W
+    dec = _decide_high_demand(st, soc=10)  # == min_discharge_soc
+    assert dec.mode == logic.MODE_IDLE and dec.target_power == 0
+    assert st.discharge.step_index == 0 and st.discharge.up_timers == []
+
+
+def test_staircase_requalifies_after_soc_recovers():
+    st = _state()
+    _decide_high_demand(st, soc=5)
+    dec = _decide_high_demand(st, soc=11)  # one full dwell (600 s) above threshold
+    assert dec.mode == logic.MODE_DISCHARGE and dec.target_power == 800
+
+
+def test_sync_applied_reanchors_integrators():
+    st = _state()
+    st.last_charge_w = 2500
+    logic.sync_applied(st, logic.MODE_CHARGE, 800)
+    assert st.last_charge_w == 800
+    st.last_support_w = 1500
+    logic.sync_applied(st, logic.MODE_GRID_SUPPORT, 0)
+    assert st.last_support_w == 0
+    logic.sync_applied(st, logic.MODE_DISCHARGE, 350)  # staircase: no integrator
+    assert st.last_charge_w == 800 and st.last_support_w == 0
+
+
+def test_no_windup_while_deadband_skips():
+    """With the integrator re-anchored on the written value it cannot drift."""
+    st = _state()
+    written = 500.0
+    for _ in range(20):
+        c = logic.charge_power(written, 110, reserve=100, max_charge=2500)  # +10 W error
+        st.last_charge_w = c
+        if abs(c - written) < 25:  # deadband: not written
+            logic.sync_applied(st, logic.MODE_CHARGE, written)
+    assert st.last_charge_w == written
+
+
+def test_discharge_decision_reports_surplus():
+    st = _state()
+    st.discharge.step_index = 1
+    dec = _decide_high_demand(st, soc=50)
+    assert dec.mode == logic.MODE_DISCHARGE
+    assert dec.surplus == 0  # grid_export passed through (0 here)
+    st2 = _state()
+    st2.discharge.step_index = 1
+    now = datetime(2026, 7, 1, 20, 0, tzinfo=UTC)
+    dec2 = logic.decide(
+        st2,
+        now=now,
+        sunset=now + timedelta(minutes=30),
+        p_batt_draw=900,
+        p_anker_out=0,
+        grid_export=-150,
+        soc=50,
+        p_anker_pv=0,
+        dt_s=30,
+        cfg=CFG,
+    )
+    assert dec2.surplus == -150

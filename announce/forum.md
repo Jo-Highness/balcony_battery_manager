@@ -1,7 +1,7 @@
 # Balcony Battery Manager — control an Anker SOLIX Solarbank 4 (E5000 Pro) from Home Assistant
 
 **Repo:** https://github.com/Jo-Highness/balcony_battery_manager
-**Status:** v2.1.2 · MIT · min HA 2024.12 · translations: English + German
+**Status:** v2.2.0 · MIT · min HA 2025.2 · translations: English + German
 
 <!-- IMAGE: hero shot — the Mode sensor + a couple of the power sensors on a dashboard card.
      Insert a 1200px-wide PNG here. Suggested filename: docs/hero-dashboard.png -->
@@ -14,7 +14,7 @@ It does not talk to the Anker cloud and needs no API key. Everything is local an
 
 ## What it does
 
-Each cycle it reads the signals you point it at — battery draw, Solarbank output, grid power, Solarbank SoC and PV, optionally a main house-battery SoC, and the sun — and picks one of four modes (**idle / discharge / charge / failsafe**), then writes the corresponding setpoints.
+Each cycle it reads the signals you point it at — battery draw, Solarbank output, grid power, Solarbank SoC and PV, optionally a main house-battery SoC, and the sun — and picks one mode (**idle / discharge / charge / grid support / failsafe**), then writes the corresponding setpoints.
 
 The control logic includes:
 
@@ -22,14 +22,15 @@ The control logic includes:
 - **Predictive PV-surplus charging** — uses PV/sun signals to charge from surplus rather than reacting only after the fact.
 - **Grid-support step** when the main house battery is empty.
 - **Deadband** around the target to avoid needless writes.
-- **Fail-safe to 0 W** when inputs look wrong or unavailable.
+- **Fail-safe to 0 W** when inputs look wrong or unavailable, or an actuator write fails.
+- **Safe direction changes** (0 W → switch direction → new setpoint) and an optional hand-back of control to the Anker app when disabled.
 
 ## Setup and entities
 
-- **UI config flow** with vendor-aware prefill; every parameter is editable later via **Options** — no YAML.
+- **UI config flow** (sectioned, with help texts and validation) and prefill of unambiguous Solarbank entities; every parameter is editable later via **Options** — no YAML.
 - **Sensors:** Mode (with diagnostic attributes), Target power, Corrected demand, Surplus power.
 - **Switch:** an *Enabled* master switch.
-- **Services:** `enable`, `disable`, `recalculate_now`.
+- **Actions:** `enable`, `disable`, `recalculate_now`.
 
 <!-- IMAGE: the config-flow / options screen showing the prefilled entity pickers.
      Insert a PNG here. Suggested filename: docs/options-flow.png -->

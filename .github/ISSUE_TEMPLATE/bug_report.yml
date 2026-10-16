@@ -46,10 +46,10 @@ body:
         The entities you configured as inputs (grid power, house consumption,
         PV, main battery SoC, and the Solarbank select/number actor entities).
       placeholder: |
-        Grid power: sensor.e3dc_grid_power
+        Grid power: sensor.house_grid_power
         House consumption: sensor.house_power
         PV: sensor.pv_power
-        Main SoC: sensor.e3dc_soc
+        Main SoC: sensor.house_battery_soc
         Actor select: select.solarbank_grid_flow
         Actor number: number.solarbank_target_grid_power
     validations:

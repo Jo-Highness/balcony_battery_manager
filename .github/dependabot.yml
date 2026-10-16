@@ -1,13 +1,21 @@
 version: 2
 updates:
-  # This integration has no pip runtime dependencies (requirements: []),
-  # so only GitHub Actions are kept up to date.
-  - package-ecosystem: "github-actions"
+    - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
     labels:
       - "dependencies"
       - "ci"
+    commit-message:
+      prefix: "ci"
+
+  # Test dependencies (requirements_test.txt).
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
     commit-message:
       prefix: "ci"

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
@@ -22,6 +22,6 @@ class BalconyBatteryEntity(CoordinatorEntity[BalconyBatteryCoordinator]):
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, coordinator.entry.entry_id)},
             name="Balcony Battery Manager",
-            manufacturer="Balcony Battery Manager",
-            model="Anker Solix balcony battery controller",
+            model="Solarbank controller",
+            entry_type=DeviceEntryType.SERVICE,
         )
